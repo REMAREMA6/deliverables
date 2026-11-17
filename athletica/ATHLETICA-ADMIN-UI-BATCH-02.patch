@@ -1,0 +1,605 @@
+diff --git a/rollout/src/components/admin/AdminHeader.tsx b/rollout/src/components/admin/AdminHeader.tsx
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/rollout/src/components/admin/AdminHeader.tsx
+@@ -0,0 +1,26 @@
++import Link from 'next/link';
++import './admin-workspace.css';
++
++export function AdminHeader() {
++  return (
++    <header className="admin-workspace-header">
++      <Link href="/admin/products" className="admin-workspace-brand">
++        <span className="admin-workspace-brand__mark">A</span>
++        <span>
++          <strong>ATHLETICA</strong>
++          <small>OPERATIONS</small>
++        </span>
++      </Link>
++
++      <nav className="admin-workspace-nav" aria-label="Admin navigation">
++        <Link href="/admin/products">Products</Link>
++        <Link href="/admin/analytics">Analytics</Link>
++      </nav>
++
++      <form action="/api/admin/auth/signout" method="POST">
++        <button className="admin-workspace-signout" type="submit">Sign out</button>
++      </form>
++    </header>
++  );
++}
+diff --git a/rollout/src/components/admin/admin-workspace.css b/rollout/src/components/admin/admin-workspace.css
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/rollout/src/components/admin/admin-workspace.css
+@@ -0,0 +1,265 @@
++.admin-workspace-header,
++.admin-workspace-header * {
++  box-sizing: border-box;
++}
++
++.admin-workspace-header {
++  min-height: 76px;
++  padding: 0 clamp(20px, 4vw, 56px);
++  display: grid;
++  grid-template-columns: 1fr auto 1fr;
++  align-items: center;
++  gap: 24px;
++  border-bottom: 1px solid #252525;
++  background: #050505;
++}
++
++.admin-workspace-brand {
++  display: inline-flex;
++  width: fit-content;
++  align-items: center;
++  gap: 11px;
++  color: #fff;
++  text-decoration: none;
++}
++
++.admin-workspace-brand__mark {
++  width: 34px;
++  height: 34px;
++  display: grid;
++  place-items: center;
++  background: #d1fd40;
++  color: #050505;
++  font-size: 18px;
++  font-weight: 950;
++  font-style: italic;
++}
++
++.admin-workspace-brand strong,
++.admin-workspace-brand small {
++  display: block;
++}
++
++.admin-workspace-brand strong {
++  font-size: 12px;
++  font-weight: 900;
++  letter-spacing: .16em;
++}
++
++.admin-workspace-brand small {
++  margin-top: 4px;
++  color: #8c8c8c;
++  font-size: 8px;
++  font-weight: 750;
++  letter-spacing: .22em;
++}
++
++.admin-workspace-nav {
++  display: flex;
++  align-items: center;
++  gap: 34px;
++}
++
++.admin-workspace-nav a {
++  padding: 29px 0 27px;
++  border-bottom: 2px solid transparent;
++  color: #929292;
++  font-size: 11px;
++  font-weight: 750;
++  letter-spacing: .1em;
++  text-decoration: none;
++  text-transform: uppercase;
++}
++
++.admin-workspace-nav a:hover,
++.admin-workspace-nav a:focus-visible {
++  border-color: #d1fd40;
++  color: #fff;
++}
++
++.admin-workspace-header form {
++  justify-self: end;
++}
++
++.admin-workspace-signout {
++  min-height: 36px;
++  padding: 0 14px;
++  border: 1px solid #363636;
++  background: transparent;
++  color: #b7b7b7;
++  font-size: 10px;
++  font-weight: 750;
++  letter-spacing: .1em;
++  text-transform: uppercase;
++  cursor: pointer;
++}
++
++.admin-workspace-signout:hover {
++  border-color: #d1fd40;
++  color: #d1fd40;
++}
++
++.admin-analytics-page {
++  width: min(100% - 48px, 1440px);
++  margin: 0 auto;
++  padding: 46px 0 90px;
++  color: #fff;
++}
++
++.admin-analytics-heading {
++  display: flex;
++  align-items: end;
++  justify-content: space-between;
++  gap: 20px;
++  margin-bottom: 30px;
++}
++
++.admin-analytics-eyebrow {
++  margin: 0 0 10px;
++  color: #d1fd40;
++  font-size: 10px;
++  font-weight: 850;
++  letter-spacing: .2em;
++  text-transform: uppercase;
++}
++
++.admin-analytics-title {
++  margin: 0;
++  color: #fff;
++  font-size: clamp(34px, 5vw, 56px);
++  font-weight: 900;
++  letter-spacing: -.065em;
++  line-height: .95;
++  text-transform: uppercase;
++}
++
++.admin-analytics-subtitle {
++  max-width: 470px;
++  margin: 13px 0 0;
++  color: #929292;
++  font-size: 13px;
++  line-height: 1.6;
++}
++
++.admin-live-indicator {
++  display: inline-flex;
++  align-items: center;
++  gap: 8px;
++  padding: 9px 12px;
++  border: 1px solid #303030;
++  color: #aaa;
++  font-size: 9px;
++  font-weight: 800;
++  letter-spacing: .12em;
++  text-transform: uppercase;
++  white-space: nowrap;
++}
++
++.admin-live-indicator::before {
++  content: "";
++  width: 7px;
++  height: 7px;
++  border-radius: 50%;
++  background: #777;
++}
++
++.admin-live-indicator[data-live="true"] {
++  border-color: rgb(209 253 64 / 35%);
++  color: #d1fd40;
++}
++
++.admin-live-indicator[data-live="true"]::before {
++  background: #d1fd40;
++  box-shadow: 0 0 0 4px rgb(209 253 64 / 12%);
++}
++
++.admin-metric-grid {
++  display: grid;
++  grid-template-columns: repeat(3, minmax(0, 1fr));
++  gap: 14px;
++}
++
++.admin-metric-card {
++  min-height: 150px;
++  padding: 22px;
++  border: 1px solid #292929;
++  background: #090909;
++}
++
++.admin-metric-card__label {
++  color: #929292;
++  font-size: 10px;
++  font-weight: 800;
++  letter-spacing: .15em;
++  text-transform: uppercase;
++}
++
++.admin-metric-card__value {
++  margin-top: 22px;
++  color: #fff;
++  font-size: clamp(32px, 4vw, 48px);
++  font-weight: 900;
++  letter-spacing: -.06em;
++  line-height: 1;
++}
++
++.admin-metric-card--accent .admin-metric-card__value {
++  color: #d1fd40;
++}
++
++.admin-analytics-section {
++  margin-top: 34px;
++}
++
++.admin-analytics-section__heading {
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  gap: 18px;
++  margin-bottom: 14px;
++}
++
++.admin-analytics-section__heading h2 {
++  margin: 0;
++  color: #fff;
++  font-size: 15px;
++  font-weight: 850;
++  letter-spacing: .02em;
++  text-transform: uppercase;
++}
++
++.admin-analytics-section__heading span {
++  color: #777;
++  font-size: 10px;
++  letter-spacing: .1em;
++  text-transform: uppercase;
++}
++
++.admin-source-grid,
++.admin-payout-grid {
++  display: grid;
++  grid-template-columns: repeat(3, minmax(0, 1fr));
++  gap: 12px;
++}
++
++.admin-source-card,
++.admin-payout-card,
++.admin-analytics-empty {
++  padding: 19px;
++  border: 1px solid #292929;
++  background: #090909;
++}
++
++.admin-source-card__name,
++.admin-payout-card__name {
++  color: #929292;
++  font-size: 10px;
++  font-weight: 800;
++  letter-spacing: .13em;
++  text-transform: uppercase;
++}
++
++.admin-source-card__counts {
++  display: flex;
++  gap: 22px;
++  margin-top: 16px;
++}
++
++.admin-source-card__counts strong,
++.admin-payout-card__value {
++  display: block;
++  color: #fff;
++  font-size: 21px;
++  font-weight: 850;
++}
++
++.admin-source-card__counts small {
++  display: block;
++  margin-top: 4px;
++  color: #777;
++  font-size: 9px;
++  text-transform: uppercase;
++}
++
++.admin-payout-card__value {
++  margin-top: 15px;
++  color: #d1fd40;
++}
++
++.admin-analytics-empty {
++  color: #777;
++  font-size: 12px;
++  line-height: 1.6;
++}
++
++.admin-analytics-loading {
++  display: grid;
++  grid-template-columns: repeat(3, minmax(0, 1fr));
++  gap: 14px;
++}
++
++.admin-analytics-loading span {
++  height: 150px;
++  background: #101010;
++  animation: admin-pulse 1.3s ease-in-out infinite alternate;
++}
++
++@keyframes admin-pulse {
++  from { opacity: .4; }
++  to { opacity: 1; }
++}
++
++@media (max-width: 760px) {
++  .admin-workspace-header {
++    min-height: 68px;
++    grid-template-columns: 1fr auto;
++    padding-inline: 16px;
++  }
++
++  .admin-workspace-nav {
++    display: none;
++  }
++
++  .admin-analytics-page {
++    width: calc(100% - 32px);
++    padding-top: 34px;
++  }
++
++  .admin-analytics-heading {
++    align-items: flex-start;
++    flex-direction: column;
++  }
++
++  .admin-metric-grid,
++  .admin-source-grid,
++  .admin-payout-grid,
++  .admin-analytics-loading {
++    grid-template-columns: 1fr;
++  }
++
++  .admin-metric-card {
++    min-height: 118px;
++  }
++
++  .admin-metric-card__value {
++    margin-top: 15px;
++  }
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .admin-workspace-header *,
++  .admin-analytics-page * {
++    animation-duration: .01ms !important;
++    transition-duration: .01ms !important;
++  }
++}
+diff --git a/rollout/src/app/admin/products/layout.tsx b/rollout/src/app/admin/products/layout.tsx
+index 1111111..2222222 100644
+--- a/rollout/src/app/admin/products/layout.tsx
++++ b/rollout/src/app/admin/products/layout.tsx
+@@ -1,29 +1,23 @@
+-import Link from 'next/link';
+ import { requireAdmin } from '@/lib/auth/admin';
+ import { notFound } from 'next/navigation';
++import { AdminHeader } from '@/components/admin/AdminHeader';
+ 
+ export default async function AdminProductsLayout({
+   children,
+ }: {
+   children: React.ReactNode;
+ }) {
+   const admin = await requireAdmin();
+   if (admin.response) {
+     notFound();
+   }
+ 
+   return (
+     <div className="admin-products-layout">
+-      <header className="admin-header">
+-        <Link href="/admin/products" className="admin-brand">
+-          Athletica Admin
+-        </Link>
+-        <form action="/api/admin/auth/signout" method="POST" className="admin-signout">
+-          <button type="submit" className="admin-btn admin-btn--secondary">
+-            Sign out
+-          </button>
+-        </form>
+-      </header>
++      <AdminHeader />
+       <main className="admin-main">{children}</main>
+     </div>
+   );
+ }
+diff --git a/rollout/src/app/admin/analytics/page.tsx b/rollout/src/app/admin/analytics/page.tsx
+index 1111111..2222222 100644
+--- a/rollout/src/app/admin/analytics/page.tsx
++++ b/rollout/src/app/admin/analytics/page.tsx
+@@ -1,16 +1,21 @@
+ // FM-14: /admin/analytics dashboard — live (SSE), honest empty states, no fake zeros.
+ import { requireAdmin } from '@/lib/auth/admin';
+ import { AnalyticsDashboard } from '@/components/admin/AnalyticsDashboard';
++import { AdminHeader } from '@/components/admin/AdminHeader';
++import '@/components/admin/admin-workspace.css';
+ 
+ export const dynamic = 'force-dynamic';
+ 
+ export default async function Page() {
+   const admin = await requireAdmin();
+   if (admin.response) return admin.response;
+   return (
+-    <section className="mx-auto max-w-[1440px] px-4 py-8">
+-      <h1 className="mb-6 text-2xl font-bold text-white">Analytics</h1>
+-      <AnalyticsDashboard streamUrl="/api/admin/analytics/stream" />
+-    </section>
++    <>
++      <AdminHeader />
++      <main className="admin-analytics-page">
++        <header className="admin-analytics-heading">
++          <div>
++            <p className="admin-analytics-eyebrow">PERFORMANCE OVERVIEW</p>
++            <h1 className="admin-analytics-title">Analytics</h1>
++            <p className="admin-analytics-subtitle">Understand product discovery, retailer handoffs and affiliate performance.</p>
++          </div>
++        </header>
++        <AnalyticsDashboard streamUrl="/api/admin/analytics/stream" />
++      </main>
++    </>
+   );
+ }
+diff --git a/rollout/src/components/admin/AnalyticsDashboard.tsx b/rollout/src/components/admin/AnalyticsDashboard.tsx
+index 1111111..2222222 100644
+--- a/rollout/src/components/admin/AnalyticsDashboard.tsx
++++ b/rollout/src/components/admin/AnalyticsDashboard.tsx
+@@ -1,65 +1,94 @@
+ // FM-14: AnalyticsDashboard client — SSE + polling fallback. Empty = "No data yet" (no fake zeros).
+ 'use client';
+ import { useEffect, useState } from 'react';
+ import type { AnalyticsSummary } from '@/lib/analytics/analytics-summary';
+ 
+ export function AnalyticsDashboard({ streamUrl }: { streamUrl: string }) {
+   const [data, setData] = useState<AnalyticsSummary | null>(null);
+   const [connected, setConnected] = useState(false);
+@@
+     startSSE();
+     return () => { es?.close(); if (pollId) clearInterval(pollId); };
+   }, [streamUrl]);
+ 
+-  if (!data) return <p className="text-neutral-400">Loading…</p>;
+-  if (data.totalViews === 0 && data.totalClicks === 0) {
+-    return <p className="text-neutral-400">No data yet.</p>;
+-  }
++  if (!data) return <div className="admin-analytics-loading" aria-label="Loading analytics"><span /><span /><span /></div>;
+ 
+   return (
+-    <div className="space-y-6">
+-      <p className="text-sm text-neutral-400">{connected ? '● live' : '○ reconnecting…'}</p>
+-      <div className="grid grid-cols-3 gap-4">
+-        <Metric label="Views" value={data.totalViews} />
+-        <Metric label="Clicks" value={data.totalClicks} />
+-        <Metric label="CTR" value={`${(data.ctr * 100).toFixed(1)}%`} />
+-      </div>
+-      <div>
+-        <h2 className="mb-2 text-lg text-white">By source</h2>
+-        <div className="flex gap-4">
+-          {data.bySource.map(s => (
+-            <div key={s.source} className="rounded border border-neutral-800 p-3">
+-              <div className="text-sm text-neutral-400">{s.source}</div>
+-              <div className="text-white">{s.views} views / {s.clicks} clicks</div>
+-            </div>
+-          ))}
+-        </div>
+-      </div>
+-      {data.payoutPipeline.length > 0 && (
+-        <div>
+-          <h2 className="mb-2 text-lg text-white">Payout pipeline</h2>
+-          <div className="flex gap-4">
+-            {data.payoutPipeline.map(p => (
+-              <div key={p.status} className="rounded border border-neutral-800 p-3">
+-                <div className="text-sm capitalize text-neutral-400">{p.status}</div>
+-                <div className="text-white">{p.count}</div>
+-              </div>
+-            ))}
+-          </div>
+-        </div>
+-      )}
+-    </div>
++    <div className="admin-analytics-content">
++      <div className="admin-analytics-heading">
++        <div />
++        <span className="admin-live-indicator" data-live={connected}> {connected ? 'Live updates' : 'Reconnecting'} </span>
++      </div>
++
++      {data.totalViews === 0 && data.totalClicks === 0 ? (
++        <div className="admin-analytics-empty">No activity has been recorded for this period yet. Once visitors view products and follow retailer links, the metrics will appear here.</div>
++      ) : (
++        <div className="admin-metric-grid">
++          <Metric label="Product views" value={data.totalViews} />
++          <Metric label="Retailer clicks" value={data.totalClicks} />
++          <Metric label="Click-through rate" value={`${(data.ctr * 100).toFixed(1)}%`} accent />
++        </div>
++      )}
++
++      <section className="admin-analytics-section">
++        <div className="admin-analytics-section__heading"><h2>Traffic sources</h2><span>Instagram · WhatsApp · Direct</span></div>
++        {data.bySource.length === 0 ? (
++          <div className="admin-analytics-empty">Source data will appear when tracked visits are recorded.</div>
++        ) : (
++          <div className="admin-source-grid">
++            {data.bySource.map(s => (
++              <article key={s.source} className="admin-source-card">
++                <div className="admin-source-card__name">{s.source}</div>
++                <div className="admin-source-card__counts">
++                  <div><strong>{s.views}</strong><small>Views</small></div>
++                  <div><strong>{s.clicks}</strong><small>Clicks</small></div>
++                </div>
++              </article>
++            ))}
++          </div>
++        )}
++      </section>
++
++      <section className="admin-analytics-section">
++        <div className="admin-analytics-section__heading"><h2>Payout pipeline</h2><span>Affiliate programme</span></div>
++        {data.payoutPipeline.length === 0 ? (
++          <div className="admin-analytics-empty">No payout activity has been recorded yet.</div>
++        ) : (
++          <div className="admin-payout-grid">
++            {data.payoutPipeline.map(p => (
++              <article key={p.status} className="admin-payout-card">
++                <div className="admin-payout-card__name">{p.status}</div>
++                <div className="admin-payout-card__value">{p.count}</div>
++              </article>
++            ))}
++          </div>
++        )}
++      </section>
++
++      {data.topProducts.length > 0 && (
++        <section className="admin-analytics-section">
++          <div className="admin-analytics-section__heading"><h2>Top products</h2></div>
++          <div className="admin-source-grid">
++            {data.topProducts.map(p => (
++              <article key={p.product_id} className="admin-source-card">
++                <div className="admin-source-card__name">{p.name}</div>
++                <div className="admin-source-card__counts">
++                  <div><strong>{p.views}</strong><small>Views</small></div>
++                  <div><strong>{p.clicks}</strong><small>Clicks</small></div>
++                </div>
++              </article>
++            ))}
++          </div>
++        </section>
++      )}
++    </div>
+   );
+ }
+ 
+-function Metric({ label, value }: { label: string; value: string | number }) {
++function Metric({ label, value, accent = false }: { label: string; value: string | number; accent?: boolean }) {
+   return (
+-    <div className="rounded border border-neutral-800 p-4">
+-      <div className="text-sm text-neutral-400">{label}</div>
+-      <div className="text-2xl font-bold text-white">{value}</div>
++    <div className={`admin-metric-card ${accent ? 'admin-metric-card--accent' : ''}`}>
++      <div className="admin-metric-card__label">{label}</div>
++      <div className="admin-metric-card__value">{value}</div>
+     </div>
+   );
+ }
