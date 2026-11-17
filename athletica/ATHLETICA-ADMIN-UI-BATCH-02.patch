@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..1111111
 --- /dev/null
 +++ b/rollout/src/components/admin/AdminHeader.tsx
-@@ -0,0 +1,26 @@
+@@ -0,0 +1,20 @@
 +import Link from 'next/link';
 +import './admin-workspace.css';
 +
@@ -29,7 +29,7 @@ new file mode 100644
 index 0000000..1111111
 --- /dev/null
 +++ b/rollout/src/components/admin/admin-workspace.css
-@@ -0,0 +1,209 @@
+@@ -0,0 +1,232 @@
 +.admin-workspace-header,
 +.admin-workspace-header * {
 +  box-sizing: border-box;
@@ -266,7 +266,7 @@ diff --git a/rollout/src/app/admin/analytics/page.tsx b/rollout/src/app/admin/an
 index 1111111..2222222 100644
 --- a/rollout/src/app/admin/analytics/page.tsx
 +++ b/rollout/src/app/admin/analytics/page.tsx
-@@ -1,16 +1,25 @@
+@@ -1,16 +1,27 @@
  // FM-14: /admin/analytics dashboard — live (SSE), honest empty states, no fake zeros.
  import { requireAdmin } from '@/lib/auth/admin';
  import { AnalyticsDashboard } from '@/components/admin/AnalyticsDashboard';
