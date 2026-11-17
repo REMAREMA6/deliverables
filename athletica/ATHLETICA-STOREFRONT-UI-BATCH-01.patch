@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..1111111
 --- /dev/null
 +++ b/rollout/src/components/storefront/StorefrontHeader.tsx
-@@ -0,0 +1,22 @@
+@@ -0,0 +1,21 @@
 +import Link from 'next/link';
 +import './storefront.css';
 +
@@ -30,7 +30,7 @@ new file mode 100644
 index 0000000..1111111
 --- /dev/null
 +++ b/rollout/src/components/storefront/storefront.css
-@@ -0,0 +1,205 @@
+@@ -0,0 +1,250 @@
 +.storefront-header,
 +.storefront-header * {
 +  box-sizing: border-box;
@@ -286,7 +286,7 @@ new file mode 100644
 index 0000000..1111111
 --- /dev/null
 +++ b/rollout/src/app/shop/page.tsx
-@@ -0,0 +1,56 @@
+@@ -0,0 +1,77 @@
 +import type { Metadata } from 'next';
 +import { Suspense } from 'react';
 +import { listProducts } from '@/lib/products/product-service';
@@ -368,7 +368,7 @@ diff --git a/rollout/src/app/page.tsx b/rollout/src/app/page.tsx
 index 1111111..2222222 100644
 --- a/rollout/src/app/page.tsx
 +++ b/rollout/src/app/page.tsx
-@@ -1,19 +1,38 @@
+@@ -1,22 +1,40 @@
  // FM-06: Storefront homepage — curated 3-up hero grid + browse carousel + footer.
  // Leads with editorial curation (3 picks, not twelve). Replaces the old MVP 404-at-root.
  import { getFeaturedProducts, getCarouselProducts } from '@/lib/products/product-service';
