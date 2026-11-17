@@ -130,7 +130,10 @@ index 0000000..1111111
 +                <img src={asset.url} alt={asset.originalFilename || 'Uploaded product asset'} loading="lazy" />
 +              </div>
 +              <div className="media-library__asset-meta">
-+                <span title={asset.originalFilename || asset._id}>{asset.originalFilename || 'Untitled image'}</span>
++                <div className="media-library__asset-info">
++                  <span title={asset.originalFilename || asset._id}>{asset.originalFilename || 'Untitled image'}</span>
++                  <code title={asset.url}>{asset.url}</code>
++                </div>
 +                <button type="button" onClick={() => void copyUrl(asset.url)}>Copy URL</button>
 +              </div>
 +            </article>
@@ -259,13 +262,28 @@ index 0000000..1111111
 +  padding: 10px 12px;
 +}
 +
-+.media-library__asset-meta span {
++.media-library__asset-info {
 +  min-width: 0;
++  display: grid;
++  gap: 5px;
++}
++
++.media-library__asset-info span,
++.media-library__asset-info code {
++  display: block;
 +  overflow: hidden;
-+  color: #b5b5b5;
-+  font-size: 10px;
 +  text-overflow: ellipsis;
 +  white-space: nowrap;
++}
++
++.media-library__asset-info span {
++  color: #b5b5b5;
++  font-size: 10px;
++}
++
++.media-library__asset-info code {
++  color: #707070;
++  font-size: 8px;
 +}
 +
 +.media-library__asset-meta button {
