@@ -1,0 +1,413 @@
+diff --git a/rollout/src/components/storefront/StorefrontHeader.tsx b/rollout/src/components/storefront/StorefrontHeader.tsx
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/rollout/src/components/storefront/StorefrontHeader.tsx
+@@ -0,0 +1,22 @@
++import Link from 'next/link';
++import './storefront.css';
++
++export function StorefrontHeader() {
++  return (
++    <header className="storefront-header">
++      <div className="storefront-header__inner">
++        <Link href="/" className="storefront-wordmark" aria-label="Athletica home">
++          ATHLETICA<span>.</span>
++        </Link>
++        <nav className="storefront-nav" aria-label="Main navigation">
++          <Link href="/shop" className="storefront-nav__link">Shop</Link>
++          <Link href="/affiliate-agreement" className="storefront-nav__link">Affiliate programme</Link>
++        </nav>
++        <Link href="/shop" className="storefront-header__action">
++          Explore gear <span aria-hidden="true">↗</span>
++        </Link>
++      </div>
++    </header>
++  );
++}
+diff --git a/rollout/src/components/storefront/storefront.css b/rollout/src/components/storefront/storefront.css
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/rollout/src/components/storefront/storefront.css
+@@ -0,0 +1,205 @@
++.storefront-header,
++.storefront-header * {
++  box-sizing: border-box;
++}
++
++.storefront-header {
++  position: relative;
++  z-index: 10;
++  width: 100%;
++  border-bottom: 1px solid #292929;
++  background: #050505;
++}
++
++.storefront-header__inner {
++  width: min(100% - 48px, 1440px);
++  min-height: 82px;
++  margin: 0 auto;
++  display: grid;
++  grid-template-columns: 1fr auto 1fr;
++  align-items: center;
++  gap: 28px;
++}
++
++.storefront-wordmark {
++  width: fit-content;
++  color: #f7f7f7;
++  font-size: 20px;
++  font-weight: 900;
++  letter-spacing: .16em;
++  line-height: 1;
++  text-decoration: none;
++}
++
++.storefront-wordmark span {
++  color: #d1fd40;
++}
++
++.storefront-nav {
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  gap: clamp(22px, 3vw, 46px);
++}
++
++.storefront-nav__link {
++  color: #b9b9b9;
++  font-size: 12px;
++  font-weight: 650;
++  letter-spacing: .08em;
++  text-decoration: none;
++  text-transform: uppercase;
++  transition: color 160ms ease;
++}
++
++.storefront-nav__link:hover,
++.storefront-nav__link:focus-visible {
++  color: #d1fd40;
++}
++
++.storefront-header__action {
++  justify-self: end;
++  display: inline-flex;
++  min-height: 42px;
++  align-items: center;
++  justify-content: center;
++  gap: 18px;
++  padding: 0 17px;
++  border: 1px solid #d1fd40;
++  color: #d1fd40;
++  font-size: 11px;
++  font-weight: 800;
++  letter-spacing: .07em;
++  text-decoration: none;
++  text-transform: uppercase;
++  transition: color 160ms ease, background 160ms ease;
++}
++
++.storefront-header__action:hover {
++  color: #050505;
++  background: #d1fd40;
++}
++
++.storefront-home-intro {
++  width: min(100% - 48px, 1440px);
++  margin: 0 auto;
++  padding: clamp(48px, 8vw, 108px) 0 18px;
++}
++
++.storefront-eyebrow {
++  margin: 0 0 16px;
++  color: #d1fd40;
++  font-size: 10px;
++  font-weight: 800;
++  letter-spacing: .22em;
++  text-transform: uppercase;
++}
++
++.storefront-home-title {
++  max-width: 900px;
++  margin: 0;
++  color: #f7f7f7;
++  font-size: clamp(44px, 8vw, 104px);
++  font-weight: 900;
++  letter-spacing: -.075em;
++  line-height: .92;
++  text-transform: uppercase;
++}
++
++.storefront-home-title span {
++  color: #d1fd40;
++}
++
++.storefront-home-copy {
++  max-width: 520px;
++  margin: 24px 0 0;
++  color: #a7a7a7;
++  font-size: 15px;
++  line-height: 1.7;
++}
++
++.storefront-section-heading {
++  width: min(100% - 48px, 1440px);
++  margin: 38px auto 0;
++  display: flex;
++  align-items: end;
++  justify-content: space-between;
++  gap: 20px;
++}
++
++.storefront-section-heading h2 {
++  margin: 0;
++  color: #f7f7f7;
++  font-size: clamp(24px, 3vw, 38px);
++  font-weight: 850;
++  letter-spacing: -.045em;
++  text-transform: uppercase;
++}
++
++.storefront-section-heading a {
++  color: #d1fd40;
++  font-size: 11px;
++  font-weight: 800;
++  letter-spacing: .08em;
++  text-decoration: none;
++  text-transform: uppercase;
++}
++
++.shop-page {
++  width: min(100% - 48px, 1440px);
++  min-height: 70vh;
++  margin: 0 auto;
++  padding: clamp(44px, 6vw, 76px) 0 90px;
++}
++
++.shop-page__eyebrow {
++  margin: 0 0 12px;
++  color: #d1fd40;
++  font-size: 10px;
++  font-weight: 800;
++  letter-spacing: .2em;
++  text-transform: uppercase;
++}
++
++.shop-page__title {
++  margin: 0;
++  color: #fff;
++  font-size: clamp(42px, 7vw, 76px);
++  font-weight: 900;
++  letter-spacing: -.065em;
++  line-height: .95;
++  text-transform: uppercase;
++}
++
++.shop-page__description {
++  max-width: 560px;
++  margin: 18px 0 38px;
++  color: #a6a6a6;
++  font-size: 14px;
++  line-height: 1.7;
++}
++
++.shop-page__results {
++  min-height: 360px;
++  border-top: 1px solid #333;
++  padding-top: 26px;
++}
++
++.shop-page__loading {
++  display: grid;
++  grid-template-columns: repeat(4, minmax(0, 1fr));
++  gap: 18px;
++}
++
++.shop-page__skeleton {
++  aspect-ratio: 4 / 5;
++  background: #101010;
++  animation: shop-pulse 1.4s ease-in-out infinite alternate;
++}
++
++@keyframes shop-pulse {
++  from { opacity: .45; }
++  to { opacity: 1; }
++}
++
++@media (max-width: 760px) {
++  .storefront-header__inner {
++    width: min(100% - 32px, 1440px);
++    min-height: 70px;
++    grid-template-columns: 1fr auto;
++    gap: 14px;
++  }
++
++  .storefront-nav {
++    display: none;
++  }
++
++  .storefront-header__action {
++    min-height: 38px;
++    gap: 10px;
++    padding: 0 11px;
++    font-size: 9px;
++  }
++
++  .storefront-home-intro,
++  .storefront-section-heading,
++  .shop-page {
++    width: min(100% - 32px, 1440px);
++  }
++
++  .storefront-home-intro {
++    padding-top: 54px;
++  }
++
++  .storefront-home-copy {
++    font-size: 14px;
++  }
++
++  .shop-page__loading {
++    grid-template-columns: repeat(2, minmax(0, 1fr));
++    gap: 12px;
++  }
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .storefront-header *,
++  .shop-page * {
++    animation-duration: .01ms !important;
++    transition-duration: .01ms !important;
++  }
++}
+diff --git a/rollout/src/app/shop/page.tsx b/rollout/src/app/shop/page.tsx
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/rollout/src/app/shop/page.tsx
+@@ -0,0 +1,56 @@
++import type { Metadata } from 'next';
++import { Suspense } from 'react';
++import { listProducts } from '@/lib/products/product-service';
++import { StorefrontHeader } from '@/components/storefront/StorefrontHeader';
++import { ShopGrid } from '@/components/storefront/ShopGrid';
++import { Footer } from '@/components/storefront/Footer';
++import '@/components/storefront/storefront.css';
++
++export const dynamic = 'force-dynamic';
++
++export const metadata: Metadata = {
++  title: 'Shop football gear | Athletica',
++  description: 'Browse football boots, training gear and equipment at Athletica.',
++  openGraph: {
++    title: 'Shop football gear | Athletica',
++    description: 'Browse football boots, training gear and equipment at Athletica.',
++    type: 'website',
++  },
++};
++
++type ShopSearchParams = {
++  q?: string;
++  category?: string;
++  sort?: string;
++  page?: string;
++};
++
++export default async function ShopPage({
++  searchParams,
++}: {
++  searchParams: Promise<ShopSearchParams>;
++}) {
++  const params = await searchParams;
++  const query = params.q?.trim() || null;
++  const category = params.category?.trim() || null;
++  const sort = params.sort === 'popular' ? 'popular' : 'newest';
++  const requestedPage = Number.parseInt(params.page ?? '1', 10);
++  const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
++  const pageSize = 16;
++
++  const result = await listProducts({
++    query,
++    category,
++    sort,
++    page,
++    pageSize,
++  });
++
++  return (
++    <>
++      <StorefrontHeader />
++      <main className="shop-page">
++        <p className="shop-page__eyebrow">THE ATHLETICA EDIT</p>
++        <h1 className="shop-page__title">Find your<br />next advantage.</h1>
++        <p className="shop-page__description">
++          Explore football gear selected for the way you play. Choose your equipment,
++          compare the details, and continue to the retailer when you are ready.
++        </p>
++        <div className="shop-page__results">
++          <Suspense fallback={<div className="shop-page__loading">{Array.from({ length: 8 }, (_, i) => <div className="shop-page__skeleton" key={i} />)}</div>}>
++            <ShopGrid
++              products={result.products}
++              total={result.total}
++              page={page}
++              pageSize={pageSize}
++              currentQuery={query}
++              currentCategory={category}
++              currentSort={sort}
++              categories={result.categories}
++            />
++          </Suspense>
++        </div>
++      </main>
++      <Footer />
++    </>
++  );
++}
+diff --git a/rollout/src/app/page.tsx b/rollout/src/app/page.tsx
+index 1111111..2222222 100644
+--- a/rollout/src/app/page.tsx
++++ b/rollout/src/app/page.tsx
+@@ -1,19 +1,38 @@
+ // FM-06: Storefront homepage — curated 3-up hero grid + browse carousel + footer.
+ // Leads with editorial curation (3 picks, not twelve). Replaces the old MVP 404-at-root.
+ import { getFeaturedProducts, getCarouselProducts } from '@/lib/products/product-service';
+ import { ThreeItemGrid } from '@/components/storefront/ThreeItemGrid';
+ import { Carousel } from '@/components/storefront/Carousel';
+ import { Footer } from '@/components/storefront/Footer';
++import Link from 'next/link';
++import { StorefrontHeader } from '@/components/storefront/StorefrontHeader';
++import '@/components/storefront/storefront.css';
+ 
+ export const dynamic = 'force-dynamic';
+ 
+ export default async function HomePage() {
+   const [featured, carousel] = await Promise.all([
+     getFeaturedProducts(3),
+     getCarouselProducts(12),
+   ]);
+   return (
+     <>
+-      <ThreeItemGrid products={featured} />
+-      <Carousel products={carousel} />
++      <StorefrontHeader />
++      <main>
++        <section className="storefront-home-intro">
++          <p className="storefront-eyebrow">BUILT FOR THE BEAUTIFUL GAME</p>
++          <h1 className="storefront-home-title">Gear up.<br /><span>Play bigger.</span></h1>
++          <p className="storefront-home-copy">
++            A considered edit of football boots and equipment for players who
++            take every touch seriously.
++          </p>
++        </section>
++        <ThreeItemGrid products={featured} />
++        <div className="storefront-section-heading">
++          <h2>Explore the collection</h2>
++          <Link href="/shop">View all gear ↗</Link>
++        </div>
++        <Carousel products={carousel} />
++      </main>
+       <Footer />
+     </>
+   );
+ }
