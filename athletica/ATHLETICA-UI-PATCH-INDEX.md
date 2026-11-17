@@ -12,6 +12,7 @@ Run from the Athletica repository root:
 4. `ATHLETICA-ADMIN-MEDIA-UI-BATCH-03.patch` — `/admin/media` upload and browse screen. Depends on batch 02's `AdminHeader`.
 5. `ATHLETICA-AFFILIATE-UI-BATCH-04.patch` — affiliate signup, verification, dashboard, trackers, balance, payouts, plus admin affiliate review, campaigns and payout review.
 6. `ATHLETICA-ADMIN-CATALOG-UI-BATCH-05.patch` — categories, collections, settings and product CSV import flow.
+7. `ATHLETICA-PRODUCT-BULK-UI-BATCH-06.patch` — product row selection, select-all, bulk action bar, action-specific inputs and visible queued/loading feedback.
 
 Example:
 
@@ -22,6 +23,7 @@ git apply ATHLETICA-ADMIN-UI-BATCH-02.patch
 git apply ATHLETICA-ADMIN-MEDIA-UI-BATCH-03.patch
 git apply ATHLETICA-AFFILIATE-UI-BATCH-04.patch
 git apply ATHLETICA-ADMIN-CATALOG-UI-BATCH-05.patch
+git apply ATHLETICA-PRODUCT-BULK-UI-BATCH-06.patch
 ```
 
 ## Current coverage
@@ -32,10 +34,11 @@ git apply ATHLETICA-ADMIN-CATALOG-UI-BATCH-05.patch
 - Media: browse/upload UI using the existing authenticated media APIs.
 - Affiliate: nine route screens with multi-step signup, ledger/history tables, tracker link copy, campaign configuration and payout state actions.
 - Admin catalog: category and collection management screens, settings sections, and CSV import upload → mapping → processing → completion states. These screens use local UI preview state; backend persistence is not claimed.
+- Product bulk UI: row checkboxes, select-visible, clear-selection, status/archive/tag/category/collection actions, action inputs, and queued/loading feedback. The action handler is a visible preview only; no backend execution is claimed.
 
 ## Not yet covered
 
-The remaining product bulk-selection/action bar and any screens not represented in the blueprint still need a final pass.
+The core screen list in the UI blueprint is now represented by the patch set. Final integration/build validation remains to be done after applying the patches.
 
 ## Constraints
 
