@@ -1,0 +1,391 @@
+diff --git a/rollout/src/components/admin/MediaLibrary.tsx b/rollout/src/components/admin/MediaLibrary.tsx
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/rollout/src/components/admin/MediaLibrary.tsx
+@@ -0,0 +1,139 @@
++'use client';
++
++import { useCallback, useEffect, useRef, useState } from 'react';
++import './media-library.css';
++
++type MediaAsset = {
++  _id: string;
++  url: string;
++  originalFilename?: string | null;
++};
++
++const MAX_FILE_SIZE = 5 * 1024 * 1024;
++const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
++
++export function MediaLibrary() {
++  const inputRef = useRef<HTMLInputElement>(null);
++  const [assets, setAssets] = useState<MediaAsset[]>([]);
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState('');
++  const [uploading, setUploading] = useState(false);
++  const [notice, setNotice] = useState('');
++
++  const loadAssets = useCallback(async () => {
++    setLoading(true);
++    setError('');
++    try {
++      const response = await fetch('/api/admin/media/assets', { cache: 'no-store' });
++      const body = await response.json();
++      if (!response.ok) throw new Error(body.error || 'Unable to load media.');
++      setAssets(Array.isArray(body.items) ? body.items : []);
++    } catch (err) {
++      setError(err instanceof Error ? err.message : 'Unable to load media.');
++    } finally {
++      setLoading(false);
++    }
++  }, []);
++
++  useEffect(() => { void loadAssets(); }, [loadAssets]);
++
++  async function uploadFile(file: File) {
++    setNotice('');
++    if (!ACCEPTED_TYPES.includes(file.type)) {
++      setNotice('Choose a JPEG, PNG, WebP or AVIF image.');
++      return;
++    }
++    if (file.size > MAX_FILE_SIZE) {
++      setNotice('The image must be 5MB or smaller.');
++      return;
++    }
++
++    setUploading(true);
++    const form = new FormData();
++    form.append('file', file);
++    try {
++      const response = await fetch('/api/admin/media/upload', { method: 'POST', body: form });
++      const body = await response.json();
++      if (!response.ok || !body.item) throw new Error(body.error || 'Upload failed.');
++      setAssets(current => [body.item as MediaAsset, ...current]);
++      setNotice('Image uploaded successfully.');
++    } catch (err) {
++      setNotice(err instanceof Error ? err.message : 'Upload failed. Try again.');
++    } finally {
++      setUploading(false);
++      if (inputRef.current) inputRef.current.value = '';
++    }
++  }
++
++  async function copyUrl(url: string) {
++    try {
++      await navigator.clipboard.writeText(url);
++      setNotice('Image URL copied.');
++    } catch {
++      setNotice('Could not copy the URL. Select it from the asset details.');
++    }
++  }
++
++  return (
++    <section className="media-library">
++      <div className="media-library__heading">
++        <div>
++          <p className="media-library__eyebrow">CONTENT ASSETS</p>
++          <h1>Media library</h1>
++          <p>Manage product imagery stored in the Athletica media library.</p>
++        </div>
++        <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>
++          {uploading ? 'Uploading…' : 'Upload image'}
++        </button>
++        <input
++          ref={inputRef}
++          className="media-library__file-input"
++          type="file"
++          accept="image/jpeg,image/png,image/webp,image/avif"
++          onChange={event => {
++            const file = event.target.files?.[0];
++            if (file) void uploadFile(file);
++          }}
++        />
++      </div>
++
++      {notice && <p className="media-library__notice" role="status" aria-live="polite">{notice}</p>}
++
++      {loading ? (
++        <div className="media-library__grid" aria-label="Loading media">
++          {Array.from({ length: 8 }, (_, i) => <div className="media-library__skeleton" key={i} />)}
++        </div>
++      ) : error ? (
++        <div className="media-library__state">
++          <h2>Unable to load media</h2>
++          <p>{error}</p>
++          <button type="button" onClick={() => void loadAssets()}>Try again</button>
++        </div>
++      ) : assets.length === 0 ? (
++        <div className="media-library__state">
++          <span className="media-library__empty-mark" aria-hidden="true">＋</span>
++          <h2>Your library is empty</h2>
++          <p>Upload a product image to make it available in the product editor.</p>
++          <button type="button" onClick={() => inputRef.current?.click()}>Upload first image</button>
++        </div>
++      ) : (
++        <div className="media-library__grid">
++          {assets.map(asset => (
++            <article className="media-library__asset" key={asset._id}>
++              <div className="media-library__preview">
++                <img src={asset.url} alt={asset.originalFilename || 'Uploaded product asset'} loading="lazy" />
++              </div>
++              <div className="media-library__asset-meta">
++                <span title={asset.originalFilename || asset._id}>{asset.originalFilename || 'Untitled image'}</span>
++                <button type="button" onClick={() => void copyUrl(asset.url)}>Copy URL</button>
++              </div>
++            </article>
++          ))}
++        </div>
++      )}
++    </section>
++  );
++}
+diff --git a/rollout/src/components/admin/media-library.css b/rollout/src/components/admin/media-library.css
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/rollout/src/components/admin/media-library.css
+@@ -0,0 +1,169 @@
++.media-library,
++.media-library * {
++  box-sizing: border-box;
++}
++
++.media-library {
++  color: #fff;
++}
++
++.media-library__heading {
++  display: flex;
++  align-items: end;
++  justify-content: space-between;
++  gap: 24px;
++  margin-bottom: 30px;
++}
++
++.media-library__eyebrow {
++  margin: 0 0 10px;
++  color: #d1fd40;
++  font-size: 10px;
++  font-weight: 850;
++  letter-spacing: .2em;
++  text-transform: uppercase;
++}
++
++.media-library__heading h1 {
++  margin: 0;
++  color: #fff;
++  font-size: clamp(34px, 5vw, 54px);
++  font-weight: 900;
++  letter-spacing: -.065em;
++  line-height: .95;
++  text-transform: uppercase;
++}
++
++.media-library__heading p:last-child {
++  margin: 13px 0 0;
++  color: #929292;
++  font-size: 13px;
++  line-height: 1.6;
++}
++
++.media-library__heading > button,
++.media-library__state button {
++  min-height: 42px;
++  padding: 0 17px;
++  border: 1px solid #d1fd40;
++  background: #d1fd40;
++  color: #050505;
++  font-size: 10px;
++  font-weight: 850;
++  letter-spacing: .1em;
++  text-transform: uppercase;
++  cursor: pointer;
++}
++
++.media-library__heading > button:disabled {
++  cursor: wait;
++  opacity: .55;
++}
++
++.media-library__file-input {
++  display: none;
++}
++
++.media-library__notice {
++  margin: 0 0 18px;
++  padding: 12px 15px;
++  border: 1px solid #303030;
++  color: #d1fd40;
++  font-size: 12px;
++}
++
++.media-library__grid {
++  display: grid;
++  grid-template-columns: repeat(4, minmax(0, 1fr));
++  gap: 16px;
++}
++
++.media-library__asset {
++  min-width: 0;
++  border: 1px solid #292929;
++  background: #090909;
++}
++
++.media-library__preview {
++  aspect-ratio: 1 / 1;
++  overflow: hidden;
++  background: #111;
++}
++
++.media-library__preview img {
++  display: block;
++  width: 100%;
++  height: 100%;
++  object-fit: cover;
++  transition: transform 180ms ease;
++}
++
++.media-library__asset:hover .media-library__preview img {
++  transform: scale(1.035);
++}
++
++.media-library__asset-meta {
++  min-height: 55px;
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  gap: 10px;
++  padding: 10px 12px;
++}
++
++.media-library__asset-meta span {
++  min-width: 0;
++  overflow: hidden;
++  color: #b5b5b5;
++  font-size: 10px;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.media-library__asset-meta button {
++  flex: none;
++  padding: 5px 0;
++  border: 0;
++  background: transparent;
++  color: #d1fd40;
++  font-size: 9px;
++  font-weight: 800;
++  letter-spacing: .06em;
++  text-transform: uppercase;
++  cursor: pointer;
++}
++
++.media-library__state {
++  min-height: 300px;
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  justify-content: center;
++  padding: 34px;
++  border: 1px dashed #353535;
++  text-align: center;
++}
++
++.media-library__empty-mark {
++  width: 44px;
++  height: 44px;
++  display: grid;
++  place-items: center;
++  border: 1px solid #d1fd40;
++  color: #d1fd40;
++  font-size: 25px;
++}
++
++.media-library__state h2 {
++  margin: 18px 0 0;
++  color: #fff;
++  font-size: 18px;
++  font-weight: 850;
++  text-transform: uppercase;
++}
++
++.media-library__state p {
++  max-width: 380px;
++  margin: 9px 0 18px;
++  color: #929292;
++  font-size: 12px;
++  line-height: 1.6;
++}
++
++.media-library__skeleton {
++  aspect-ratio: 1 / 1;
++  background: #101010;
++  animation: media-pulse 1.3s ease-in-out infinite alternate;
++}
++
++@keyframes media-pulse {
++  from { opacity: .4; }
++  to { opacity: 1; }
++}
++
++@media (max-width: 900px) {
++  .media-library__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
++}
++
++@media (max-width: 620px) {
++  .media-library__heading { align-items: flex-start; flex-direction: column; }
++  .media-library__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
++}
+diff --git a/rollout/src/app/admin/media/page.tsx b/rollout/src/app/admin/media/page.tsx
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/rollout/src/app/admin/media/page.tsx
+@@ -0,0 +1,19 @@
++import { requireAdmin } from '@/lib/auth/admin';
++import { AdminHeader } from '@/components/admin/AdminHeader';
++import { MediaLibrary } from '@/components/admin/MediaLibrary';
++import '@/components/admin/admin-workspace.css';
++
++export const dynamic = 'force-dynamic';
++
++export default async function AdminMediaPage() {
++  const admin = await requireAdmin();
++  if (admin.response) return admin.response;
++
++  return (
++    <>
++      <AdminHeader />
++      <main className="admin-analytics-page">
++        <MediaLibrary />
++      </main>
++    </>
++  );
++}
+diff --git a/rollout/src/components/admin/AdminHeader.tsx b/rollout/src/components/admin/AdminHeader.tsx
+index 1111111..2222222 100644
+--- a/rollout/src/components/admin/AdminHeader.tsx
++++ b/rollout/src/components/admin/AdminHeader.tsx
+@@ -1,20 +1,21 @@
+ import Link from 'next/link';
+ import './admin-workspace.css';
+ 
+ export function AdminHeader() {
+   return (
+     <header className="admin-workspace-header">
+       <Link href="/admin/products" className="admin-workspace-brand">
+         <span className="admin-workspace-brand__mark">A</span>
+         <span><strong>ATHLETICA</strong><small>OPERATIONS</small></span>
+       </Link>
+       <nav className="admin-workspace-nav" aria-label="Admin navigation">
+         <Link href="/admin/products">Products</Link>
++        <Link href="/admin/media">Media</Link>
+         <Link href="/admin/analytics">Analytics</Link>
+       </nav>
+       <form action="/api/admin/auth/signout" method="POST">
+         <button className="admin-workspace-signout" type="submit">Sign out</button>
+       </form>
+     </header>
+   );
+ }
