@@ -1,0 +1,85 @@
+diff --git a/rollout/src/app/admin/products/page.tsx b/rollout/src/app/admin/products/page.tsx
+--- a/rollout/src/app/admin/products/page.tsx
++++ b/rollout/src/app/admin/products/page.tsx
+@@
+   const [editorOpen, setEditorOpen] = useState(false);
++  const [selectedIds, setSelectedIds] = useState<string[]>([]);
++  const [bulkAction, setBulkAction] = useState('');
++  const [bulkValue, setBulkValue] = useState('');
++  const [bulkBusy, setBulkBusy] = useState(false);
+@@
+   const showCatalogEmpty = !loading && !error && items.length === 0 && searchDebounced.length === 0;
++  const allVisibleSelected = items.length > 0 && items.every((item) => selectedIds.includes(item.id));
++  const toggleSelected = (id: string) => setSelectedIds((current) => current.includes(id) ? current.filter((x) => x !== id) : [...current, id]);
++  const runBulkPreview = () => {
++    if (!selectedIds.length) return;
++    setBulkBusy(true);
++    window.setTimeout(() => {
++      setBulkBusy(false);
++      push('info', `${bulkAction} queued for ${selectedIds.length} selected product(s). Connect the bulk API to execute this action.`);
++      setBulkAction('');
++      setBulkValue('');
++      setSelectedIds([]);
++    }, 650);
++  };
+@@
+         <div className="admin-toolbar">
+@@
+           <span className="admin-count">{total} products</span>
+         </div>
++        {selectedIds.length > 0 && (
++          <div className="admin-bulkbar">
++            <div><strong>{selectedIds.length}</strong><span> selected</span><button type="button" onClick={() => setSelectedIds([])}>Clear selection</button></div>
++            <select aria-label="Bulk action" value={bulkAction} onChange={(e) => { setBulkAction(e.target.value); setBulkValue(''); }}>
++              <option value="">Choose bulk action</option>
++              <option value="Set status">Set status</option>
++              <option value="Archive">Archive</option>
++              <option value="Add tags">Add tags</option>
++              <option value="Remove tags">Remove tags</option>
++              <option value="Add to category">Add to category</option>
++              <option value="Remove from category">Remove from category</option>
++              <option value="Add to collection">Add to collection</option>
++              <option value="Remove from collection">Remove from collection</option>
++            </select>
++            {bulkAction === 'Set status' && <select aria-label="Choose status" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)}><option value="">Choose status</option><option value="published">Published</option><option value="unpublished">Unpublished</option><option value="archived">Archived</option></select>}
++            {['Add tags', 'Remove tags', 'Add to category', 'Remove from category', 'Add to collection', 'Remove from collection'].includes(bulkAction) && <input aria-label="Bulk value" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} placeholder={bulkAction.includes('tag') ? 'Enter tag' : 'Enter name'} />}
++            <button type="button" className="admin-btn admin-btn--primary" disabled={!bulkAction || (bulkAction !== 'Archive' && !bulkValue) || bulkBusy} onClick={runBulkPreview}>{bulkBusy ? 'Working…' : 'Apply action'}</button>
++          </div>
++        )}
+@@
+                 <thead>
+                   <tr>
++                    <th scope="col"><input type="checkbox" aria-label="Select all visible products" checked={allVisibleSelected} onChange={() => setSelectedIds((current) => allVisibleSelected ? current.filter((id) => !items.some((item) => item.id === id)) : [...new Set([...current, ...items.map((item) => item.id)])])} /></th>
+                     <th scope="col">Product</th>
+@@
+                     return (
+                       <tr key={product.id}>
++                        <td><input type="checkbox" aria-label={`Select ${product.name}`} checked={selectedIds.includes(product.id)} onChange={() => toggleSelected(product.id)} /></td>
+                         <td className="admin-product-cell">
+@@
+               <div className="admin-pagination">
+*** End Patch
+diff --git a/rollout/src/app/admin/products/admin.css b/rollout/src/app/admin/products/admin.css
+--- a/rollout/src/app/admin/products/admin.css
++++ b/rollout/src/app/admin/products/admin.css
+@@
+ .admin-toolbar {
+@@
+ }
++
++.admin-bulkbar {
++  display: flex;
++  align-items: center;
++  gap: 10px;
++  flex-wrap: wrap;
++  padding: 14px 16px;
++  margin: 0 0 18px;
++  border: 1px solid var(--admin-lemon);
++  background: #0b0b0b;
++}
++.admin-bulkbar > div { display:flex; align-items:center; gap:6px; margin-right:auto; color:var(--admin-muted); font-size:12px; }
++.admin-bulkbar > div strong { color:var(--admin-lemon); font-size:16px; }
++.admin-bulkbar > div button { border:0; background:none; color:var(--admin-ink); text-decoration:underline; cursor:pointer; margin-left:8px; font-size:11px; }
++.admin-bulkbar select,.admin-bulkbar input { min-width:150px; background:#080808; color:#fff; border:1px solid var(--admin-line); padding:10px; font-size:12px; }
++.admin-table input[type="checkbox"],.admin-table th input[type="checkbox"] { accent-color:var(--admin-lemon); width:16px; height:16px; cursor:pointer; }
++@media(max-width:700px){.admin-bulkbar{align-items:stretch}.admin-bulkbar>*{width:100%}.admin-bulkbar select,.admin-bulkbar input{width:100%}}
