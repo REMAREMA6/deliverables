@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..1111111
 --- /dev/null
 +++ b/rollout/src/components/admin/MediaLibrary.tsx
-@@ -0,0 +1,139 @@
+@@ -0,0 +1,136 @@
 +'use client';
 +
 +import { useCallback, useEffect, useRef, useState } from 'react';
@@ -145,7 +145,7 @@ new file mode 100644
 index 0000000..1111111
 --- /dev/null
 +++ b/rollout/src/components/admin/media-library.css
-@@ -0,0 +1,169 @@
+@@ -0,0 +1,191 @@
 +.media-library,
 +.media-library * {
 +  box-sizing: border-box;
@@ -342,7 +342,7 @@ new file mode 100644
 index 0000000..1111111
 --- /dev/null
 +++ b/rollout/src/app/admin/media/page.tsx
-@@ -0,0 +1,19 @@
+@@ -0,0 +1,20 @@
 +import { requireAdmin } from '@/lib/auth/admin';
 +import { AdminHeader } from '@/components/admin/AdminHeader';
 +import { MediaLibrary } from '@/components/admin/MediaLibrary';
