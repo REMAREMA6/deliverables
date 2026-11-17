@@ -1,10 +1,3 @@
-# Athletica product detail UI patch
-
-Apply from the Athletica repository root with `git apply ATHLETICA-PRODUCT-DETAIL-UI.patch`.
-
-This patch replaces only the product detail page client component and imports the existing `rollout1-pixel-match.css` stylesheet from its route page. It does not modify admin screens, `/admin/signin`, APIs, database code, Sanity integrations, or other routes. The stylesheet already exists in the current `main` branch.
-
-```diff
 diff --git a/rollout/src/app/product/[slug]/ProductDetailsClient.tsx b/rollout/src/app/product/[slug]/ProductDetailsClient.tsx
 --- a/rollout/src/app/product/[slug]/ProductDetailsClient.tsx
 +++ b/rollout/src/app/product/[slug]/ProductDetailsClient.tsx
@@ -535,4 +528,3 @@ diff --git a/rollout/src/app/product/[slug]/page.tsx b/rollout/src/app/product/[
 +function headersPromise() {
 +  return headersFn();
 +}
-```
