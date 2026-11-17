@@ -1,14 +1,539 @@
 diff --git a/rollout/src/app/admin/products/page.tsx b/rollout/src/app/admin/products/page.tsx
 --- a/rollout/src/app/admin/products/page.tsx
 +++ b/rollout/src/app/admin/products/page.tsx
-@@
-   const [editorOpen, setEditorOpen] = useState(false);
+@@ -1,387 +1,413 @@
+-'use client';
+-
+-import { useCallback, useEffect, useState } from 'react';
+-import Link from 'next/link';
+-import type { ProductRow } from '@/lib/database.types';
+-import { useToasts, ToastViewport } from '@/lib/ui/toast';
+-import { ConfirmDialog } from '@/lib/ui/confirm-dialog';
+-import { FALLBACK_PRODUCT_IMAGE } from '@/lib/placeholder';
+-import ProductEditor from './product-editor';
+-import './admin.css';
+-
+-const PAGE_SIZE = 8;
+-
+-const STATUS_OPTIONS = [
+-  { value: 'all', label: 'All Statuses' },
+-  { value: 'published', label: 'Published' },
+-  { value: 'unpublished', label: 'Unpublished' },
+-] as const;
+-
+-const SORT_OPTIONS = [
+-  { value: 'newest', label: 'Newest' },
+-  { value: 'oldest', label: 'Oldest' },
+-  { value: 'name_asc', label: 'Name A–Z' },
+-  { value: 'name_desc', label: 'Name Z–A' },
+-  { value: 'price_asc', label: 'Price Low–High' },
+-  { value: 'price_desc', label: 'Price High–Low' },
+-] as const;
+-
+-type StatusFilter = (typeof STATUS_OPTIONS)[number]['value'];
+-type SortOption = (typeof SORT_OPTIONS)[number]['value'];
+-
+-export default function AdminProductsPage() {
+-  const { toasts, push, dismiss } = useToasts();
+-
+-  const [status, setStatus] = useState<StatusFilter>('all');
+-  const [sort, setSort] = useState<SortOption>('newest');
+-  const [search, setSearch] = useState('');
+-  const [searchDebounced, setSearchDebounced] = useState('');
+-  const [page, setPage] = useState(1);
+-
+-  const [items, setItems] = useState<ProductRow[]>([]);
+-  const [total, setTotal] = useState(0);
+-  const [loading, setLoading] = useState(true);
+-  const [error, setError] = useState(false);
+-  const [deleteTarget, setDeleteTarget] = useState<ProductRow | null>(null);
+-  const [busy, setBusy] = useState<{ id: string; action: 'status' | 'delete' } | null>(null);
+-  const [reloadKey, setReloadKey] = useState(0);
+-  const [editorOpen, setEditorOpen] = useState(false);
+-
+-  // Debounce search input
+-  useEffect(() => {
+-    const timer = setTimeout(() => setSearchDebounced(search.trim()), 300);
+-    return () => clearTimeout(timer);
+-  }, [search]);
+-
+-  // Load data whenever filters/sort/search/page change
+-  useEffect(() => {
+-    const controller = new AbortController();
+-
+-    async function load() {
+-      setLoading(true);
+-      setError(false);
+-      try {
+-        const params = new URLSearchParams({
+-          status,
+-          sort,
+-          search: searchDebounced,
+-          page: String(page),
+-          pageSize: String(PAGE_SIZE),
+-        });
+-        const res = await fetch(`/api/admin/products?${params.toString()}`, { signal: controller.signal });
+-        const data = await res.json();
+-        if (!res.ok) throw new Error(data.error || 'Unable to load products');
+-        setItems(data.items);
+-        setTotal(data.total);
+-      } catch (err) {
+-        if ((err as Error).name === 'AbortError') return;
+-        setError(true);
+-      } finally {
+-        setLoading(false);
+-      }
+-    }
+-
+-    load();
+-    return () => controller.abort();
+-  }, [status, sort, searchDebounced, page, reloadKey]);
+-
+-  const toggleStatus = useCallback(
+-    async (product: ProductRow) => {
+-      const nextStatus = product.status === 'published' ? 'unpublished' : 'published';
+-      setBusy({ id: product.id, action: 'status' });
+-      try {
+-        const res = await fetch('/api/admin/products', {
+-          method: 'PATCH',
+-          headers: { 'Content-Type': 'application/json' },
+-          body: JSON.stringify({ id: product.id, status: nextStatus }),
+-        });
+-        const data = await res.json();
+-        if (!res.ok) throw new Error(data.error || 'Unable to update status');
+-        setItems((prev) => prev.map((p) => (p.id === product.id ? data.item : p)));
+-        push('success', nextStatus === 'published' ? 'Product published' : 'Product unpublished');
+-      } catch {
+-        // Row stays unchanged; toast reports the failure
+-        push('error', 'Unable to update status');
+-      } finally {
+-        setBusy(null);
+-      }
+-    },
+-    [push]
+-  );
+-
+-  const confirmDelete = useCallback(async () => {
+-    if (!deleteTarget) return;
+-    const target = deleteTarget;
+-    setBusy({ id: target.id, action: 'delete' });
+-    try {
+-      const res = await fetch(`/api/admin/products?id=${encodeURIComponent(target.id)}`, { method: 'DELETE' });
+-      const data = await res.json().catch(() => ({}));
+-      if (!res.ok) throw new Error(data.error || 'Unable to delete product');
+-      setItems((prev) => prev.filter((p) => p.id !== target.id));
+-      setTotal((t) => Math.max(0, t - 1));
+-      setDeleteTarget(null);
+-      setBusy(null);
+-      push('success', 'Product deleted');
+-      // If deletion empties the current page, move back one
+-      if (items.length === 1 && page > 1) setPage((p) => p - 1);
+-    } catch {
+-      setDeleteTarget(null);
+-      setBusy(null);
+-      // Row remains; error toast
+-      push('error', 'Unable to delete product');
+-    }
+-  }, [deleteTarget, items.length, page, push]);
+-
+-  const resetToFirstPage = () => setPage(1);
+-
+-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+-  const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+-  const to = Math.min(page * PAGE_SIZE, total);
+-  const showSearchEmpty = !loading && !error && items.length === 0 && searchDebounced.length > 0;
+-  const showCatalogEmpty = !loading && !error && items.length === 0 && searchDebounced.length === 0;
+-
+-  return (
+-    <div className="admin-page">
+-      <div className="admin-shell">
+-        <header className="admin-header">
+-          <div className="admin-eyebrow">ROLLOUT 1</div>
+-          <h1 className="admin-title">Products</h1>
+-          <button type="button" className="admin-btn admin-btn--primary" onClick={() => setEditorOpen(true)}>
+-            + Add Product
+-          </button>
+-        </header>
+-
+-        <div className="admin-toolbar">
+-          <input
+-            type="search"
+-            className="admin-search"
+-            placeholder="Search name, id, slug, color"
+-            value={search}
+-            onChange={(e) => {
+-              setSearch(e.target.value);
+-              resetToFirstPage();
+-            }}
+-            aria-label="Search products"
+-          />
+-
+-          <div className="admin-filter" role="group" aria-label="Filter by status">
+-            {STATUS_OPTIONS.map((opt) => (
+-              <button
+-                key={opt.value}
+-                type="button"
+-                className={`admin-pill ${status === opt.value ? 'is-active' : ''}`}
+-                onClick={() => {
+-                  setStatus(opt.value);
+-                  resetToFirstPage();
+-                }}
+-              >
+-                {opt.label}
+-              </button>
+-            ))}
+-          </div>
+-
+-          <label className="admin-sort">
+-            <span className="admin-visually-hidden">Sort</span>
+-            <select
+-              value={sort}
+-              onChange={(e) => {
+-                setSort(e.target.value as SortOption);
+-                resetToFirstPage();
+-              }}
+-            >
+-              {SORT_OPTIONS.map((opt) => (
+-                <option key={opt.value} value={opt.value}>
+-                  {opt.label}
+-                </option>
+-              ))}
+-            </select>
+-          </label>
+-
+-          <span className="admin-count">{total} products</span>
+-        </div>
+-
+-        <main className="admin-body">
+-          {error ? (
+-            <div className="admin-state">
+-              <h2 className="admin-state__title">PRODUCTS COULDN&apos;T BE LOADED</h2>
+-              <p className="admin-state__text">Something went wrong while loading the catalog.</p>
+-              <button
+-                type="button"
+-                className="admin-btn"
+-                onClick={() => {
+-                  setError(false);
+-                  setLoading(true);
+-                  setReloadKey((k) => k + 1);
+-                }}
+-              >
+-                TRY AGAIN
+-              </button>
+-            </div>
+-          ) : loading && items.length === 0 ? (
+-            <div className="admin-skeleton">
+-              {Array.from({ length: 6 }).map((_, i) => (
+-                <div className="admin-skeleton__row" key={i} />
+-              ))}
+-            </div>
+-          ) : showSearchEmpty ? (
+-            <div className="admin-state">
+-              <h2 className="admin-state__title">NO PRODUCTS FOUND</h2>
+-              <p className="admin-state__text">Try another search term or clear the filter.</p>
+-              <button
+-                type="button"
+-                className="admin-btn"
+-                onClick={() => {
+-                  setSearch('');
+-                  setSearchDebounced('');
+-                  resetToFirstPage();
+-                }}
+-              >
+-                CLEAR SEARCH
+-              </button>
+-            </div>
+-          ) : showCatalogEmpty ? (
+-            <div className="admin-state">
+-              <h2 className="admin-state__title">No products yet.</h2>
+-              <button type="button" className="admin-btn admin-btn--primary" onClick={() => setEditorOpen(true)}>
+-                + ADD PRODUCT
+-              </button>
+-            </div>
+-          ) : (
+-            <div className="admin-table-wrap">
+-              <table className="admin-table">
+-                <thead>
+-                  <tr>
+-                    <th scope="col">Product</th>
+-                    <th scope="col">ID</th>
+-                    <th scope="col">Status</th>
+-                    <th scope="col">Price</th>
+-                    <th scope="col">Tags</th>
+-                    <th scope="col">Actions</th>
+-                  </tr>
+-                </thead>
+-                <tbody>
+-                  {items.map((product) => {
+-                    const rowBusy = busy?.id === product.id;
+-                    return (
+-                      <tr key={product.id}>
+-                        <td className="admin-product-cell">
+-                          <img
+-                            className="admin-thumb"
+-                            src={product.main_image ?? FALLBACK_PRODUCT_IMAGE}
+-                            alt=""
+-                          />
+-                          <div className="admin-product-meta">
+-                            <Link className="admin-product-name" href={`/admin/products/${product.id}/edit`}>
+-                              {product.name}
+-                            </Link>
+-                            {product.color && <span className="admin-product-color">{product.color}</span>}
+-                          </div>
+-                        </td>
+-                        <td>
+-                          <span className="admin-id">{product.id}</span>
+-                        </td>
+-                        <td>
+-                          <span className={`admin-status admin-status--${product.status}`}>{product.status}</span>
+-                        </td>
+-                        <td>{typeof product.price === 'number' ? `$${product.price.toFixed(2)}` : '—'}</td>
+-                        <td>
+-                          {product.tags && product.tags.length > 0 && (
+-                            <div className="admin-tags">
+-                              {product.tags.slice(0, 3).map((tag) => (
+-                                <span className="admin-tag" key={tag}>
+-                                  {tag}
+-                                </span>
+-                              ))}
+-                              {product.tags.length > 3 && <span className="admin-tag">+{product.tags.length - 3}</span>}
+-                            </div>
+-                          )}
+-                        </td>
+-                        <td>
+-                          <div className="admin-actions">
+-                            <Link className="admin-action admin-action--link" href={`/admin/products/${product.id}/edit`}>
+-                              Edit
+-                            </Link>
+-                            <button
+-                              type="button"
+-                              className="admin-action"
+-                              disabled={rowBusy}
+-                              onClick={() => toggleStatus(product)}
+-                            >
+-                              {rowBusy && busy?.action === 'status'
+-                                ? product.status === 'published'
+-                                  ? 'Unpublishing...'
+-                                  : 'Publishing...'
+-                                : product.status === 'published'
+-                                  ? 'Unpublish'
+-                                  : 'Publish'}
+-                            </button>
+-                            <button
+-                              type="button"
+-                              className="admin-action admin-action--danger"
+-                              disabled={rowBusy}
+-                              onClick={() => setDeleteTarget(product)}
+-                            >
+-                              {rowBusy && busy?.action === 'delete' ? 'Deleting...' : 'Delete'}
+-                            </button>
+-                          </div>
+-                        </td>
+-                      </tr>
+-                    );
+-                  })}
+-                </tbody>
+-              </table>
+-
+-              <div className="admin-pagination">
+-                <span className="admin-pagination__info">
+-                  Showing {from} to {to} of {total} products
+-                </span>
+-                <div className="admin-pagination__controls">
+-                  <button
+-                    type="button"
+-                    className="admin-btn"
+-                    disabled={page <= 1 || loading}
+-                    onClick={() => setPage((p) => p - 1)}
+-                  >
+-                    Previous
+-                  </button>
+-                  <button
+-                    type="button"
+-                    className="admin-btn"
+-                    disabled={page >= totalPages || loading}
+-                    onClick={() => setPage((p) => p + 1)}
+-                  >
+-                    Next
+-                  </button>
+-                </div>
+-              </div>
+-            </div>
+-          )}
+-        </main>
+-      </div>
+-
+-      {editorOpen && (
+-        <ProductEditor
+-          mode="create"
+-          onClose={() => setEditorOpen(false)}
+-          onSaved={() => {
+-            setEditorOpen(false);
+-            push('success', 'Product created');
+-            setReloadKey((k) => k + 1);
+-          }}
+-        />
+-      )}
+-
+-      <ConfirmDialog
+-        open={deleteTarget !== null}
+-        title={deleteTarget ? `Delete "${deleteTarget.name}"?` : ''}
+-        description="This will permanently remove the product from the catalog."
+-        confirmLabel="Delete Product"
+-        busy={busy?.action === 'delete' && busy?.id === deleteTarget?.id}
+-        onCancel={() => setDeleteTarget(null)}
+-        onConfirm={confirmDelete}
+-      />
+-
+-      <ToastViewport toasts={toasts} onDismiss={dismiss} />
+-    </div>
+-  );
+-}
++'use client';
++
++import { useCallback, useEffect, useState } from 'react';
++import Link from 'next/link';
++import type { ProductRow } from '@/lib/database.types';
++import { useToasts, ToastViewport } from '@/lib/ui/toast';
++import { ConfirmDialog } from '@/lib/ui/confirm-dialog';
++import { FALLBACK_PRODUCT_IMAGE } from '@/lib/placeholder';
++import ProductEditor from './product-editor';
++import './admin.css';
++
++const PAGE_SIZE = 8;
++
++const STATUS_OPTIONS = [
++  { value: 'all', label: 'All Statuses' },
++  { value: 'published', label: 'Published' },
++  { value: 'unpublished', label: 'Unpublished' },
++] as const;
++
++const SORT_OPTIONS = [
++  { value: 'newest', label: 'Newest' },
++  { value: 'oldest', label: 'Oldest' },
++  { value: 'name_asc', label: 'Name A–Z' },
++  { value: 'name_desc', label: 'Name Z–A' },
++  { value: 'price_asc', label: 'Price Low–High' },
++  { value: 'price_desc', label: 'Price High–Low' },
++] as const;
++
++type StatusFilter = (typeof STATUS_OPTIONS)[number]['value'];
++type SortOption = (typeof SORT_OPTIONS)[number]['value'];
++
++export default function AdminProductsPage() {
++  const { toasts, push, dismiss } = useToasts();
++
++  const [status, setStatus] = useState<StatusFilter>('all');
++  const [sort, setSort] = useState<SortOption>('newest');
++  const [search, setSearch] = useState('');
++  const [searchDebounced, setSearchDebounced] = useState('');
++  const [page, setPage] = useState(1);
++
++  const [items, setItems] = useState<ProductRow[]>([]);
++  const [total, setTotal] = useState(0);
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState(false);
++  const [deleteTarget, setDeleteTarget] = useState<ProductRow | null>(null);
++  const [busy, setBusy] = useState<{ id: string; action: 'status' | 'delete' } | null>(null);
++  const [reloadKey, setReloadKey] = useState(0);
++  const [editorOpen, setEditorOpen] = useState(false);
 +  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 +  const [bulkAction, setBulkAction] = useState('');
 +  const [bulkValue, setBulkValue] = useState('');
 +  const [bulkBusy, setBulkBusy] = useState(false);
-@@
-   const showCatalogEmpty = !loading && !error && items.length === 0 && searchDebounced.length === 0;
++
++  // Debounce search input
++  useEffect(() => {
++    const timer = setTimeout(() => setSearchDebounced(search.trim()), 300);
++    return () => clearTimeout(timer);
++  }, [search]);
++
++  // Load data whenever filters/sort/search/page change
++  useEffect(() => {
++    const controller = new AbortController();
++
++    async function load() {
++      setLoading(true);
++      setError(false);
++      try {
++        const params = new URLSearchParams({
++          status,
++          sort,
++          search: searchDebounced,
++          page: String(page),
++          pageSize: String(PAGE_SIZE),
++        });
++        const res = await fetch(`/api/admin/products?${params.toString()}`, { signal: controller.signal });
++        const data = await res.json();
++        if (!res.ok) throw new Error(data.error || 'Unable to load products');
++        setItems(data.items);
++        setTotal(data.total);
++      } catch (err) {
++        if ((err as Error).name === 'AbortError') return;
++        setError(true);
++      } finally {
++        setLoading(false);
++      }
++    }
++
++    load();
++    return () => controller.abort();
++  }, [status, sort, searchDebounced, page, reloadKey]);
++
++  const toggleStatus = useCallback(
++    async (product: ProductRow) => {
++      const nextStatus = product.status === 'published' ? 'unpublished' : 'published';
++      setBusy({ id: product.id, action: 'status' });
++      try {
++        const res = await fetch('/api/admin/products', {
++          method: 'PATCH',
++          headers: { 'Content-Type': 'application/json' },
++          body: JSON.stringify({ id: product.id, status: nextStatus }),
++        });
++        const data = await res.json();
++        if (!res.ok) throw new Error(data.error || 'Unable to update status');
++        setItems((prev) => prev.map((p) => (p.id === product.id ? data.item : p)));
++        push('success', nextStatus === 'published' ? 'Product published' : 'Product unpublished');
++      } catch {
++        // Row stays unchanged; toast reports the failure
++        push('error', 'Unable to update status');
++      } finally {
++        setBusy(null);
++      }
++    },
++    [push]
++  );
++
++  const confirmDelete = useCallback(async () => {
++    if (!deleteTarget) return;
++    const target = deleteTarget;
++    setBusy({ id: target.id, action: 'delete' });
++    try {
++      const res = await fetch(`/api/admin/products?id=${encodeURIComponent(target.id)}`, { method: 'DELETE' });
++      const data = await res.json().catch(() => ({}));
++      if (!res.ok) throw new Error(data.error || 'Unable to delete product');
++      setItems((prev) => prev.filter((p) => p.id !== target.id));
++      setTotal((t) => Math.max(0, t - 1));
++      setDeleteTarget(null);
++      setBusy(null);
++      push('success', 'Product deleted');
++      // If deletion empties the current page, move back one
++      if (items.length === 1 && page > 1) setPage((p) => p - 1);
++    } catch {
++      setDeleteTarget(null);
++      setBusy(null);
++      // Row remains; error toast
++      push('error', 'Unable to delete product');
++    }
++  }, [deleteTarget, items.length, page, push]);
++
++  const resetToFirstPage = () => setPage(1);
++
++  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
++  const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
++  const to = Math.min(page * PAGE_SIZE, total);
++  const showSearchEmpty = !loading && !error && items.length === 0 && searchDebounced.length > 0;
++  const showCatalogEmpty = !loading && !error && items.length === 0 && searchDebounced.length === 0;
 +  const allVisibleSelected = items.length > 0 && items.every((item) => selectedIds.includes(item.id));
 +  const toggleSelected = (id: string) => setSelectedIds((current) => current.includes(id) ? current.filter((x) => x !== id) : [...current, id]);
 +  const runBulkPreview = () => {
@@ -17,69 +542,2559 @@ diff --git a/rollout/src/app/admin/products/page.tsx b/rollout/src/app/admin/pro
 +    window.setTimeout(() => {
 +      setBulkBusy(false);
 +      push('info', `${bulkAction} queued for ${selectedIds.length} selected product(s). Connect the bulk API to execute this action.`);
-+      setBulkAction('');
-+      setBulkValue('');
-+      setSelectedIds([]);
++      setBulkAction(''); setBulkValue(''); setSelectedIds([]);
 +    }, 650);
 +  };
-@@
-         <div className="admin-toolbar">
-@@
-           <span className="admin-count">{total} products</span>
-         </div>
-+        {selectedIds.length > 0 && (
-+          <div className="admin-bulkbar">
-+            <div><strong>{selectedIds.length}</strong><span> selected</span><button type="button" onClick={() => setSelectedIds([])}>Clear selection</button></div>
-+            <select aria-label="Bulk action" value={bulkAction} onChange={(e) => { setBulkAction(e.target.value); setBulkValue(''); }}>
-+              <option value="">Choose bulk action</option>
-+              <option value="Set status">Set status</option>
-+              <option value="Archive">Archive</option>
-+              <option value="Add tags">Add tags</option>
-+              <option value="Remove tags">Remove tags</option>
-+              <option value="Add to category">Add to category</option>
-+              <option value="Remove from category">Remove from category</option>
-+              <option value="Add to collection">Add to collection</option>
-+              <option value="Remove from collection">Remove from collection</option>
-+            </select>
-+            {bulkAction === 'Set status' && <select aria-label="Choose status" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)}><option value="">Choose status</option><option value="published">Published</option><option value="unpublished">Unpublished</option><option value="archived">Archived</option></select>}
-+            {['Add tags', 'Remove tags', 'Add to category', 'Remove from category', 'Add to collection', 'Remove from collection'].includes(bulkAction) && <input aria-label="Bulk value" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} placeholder={bulkAction.includes('tag') ? 'Enter tag' : 'Enter name'} />}
-+            <button type="button" className="admin-btn admin-btn--primary" disabled={!bulkAction || (bulkAction !== 'Archive' && !bulkValue) || bulkBusy} onClick={runBulkPreview}>{bulkBusy ? 'Working…' : 'Apply action'}</button>
++
++  return (
++    <div className="admin-page">
++      <div className="admin-shell">
++        <header className="admin-header">
++          <div className="admin-eyebrow">ROLLOUT 1</div>
++          <h1 className="admin-title">Products</h1>
++          <button type="button" className="admin-btn admin-btn--primary" onClick={() => setEditorOpen(true)}>
++            + Add Product
++          </button>
++        </header>
++
++        <div className="admin-toolbar">
++          <input
++            type="search"
++            className="admin-search"
++            placeholder="Search name, id, slug, color"
++            value={search}
++            onChange={(e) => {
++              setSearch(e.target.value);
++              resetToFirstPage();
++            }}
++            aria-label="Search products"
++          />
++
++          <div className="admin-filter" role="group" aria-label="Filter by status">
++            {STATUS_OPTIONS.map((opt) => (
++              <button
++                key={opt.value}
++                type="button"
++                className={`admin-pill ${status === opt.value ? 'is-active' : ''}`}
++                onClick={() => {
++                  setStatus(opt.value);
++                  resetToFirstPage();
++                }}
++              >
++                {opt.label}
++              </button>
++            ))}
 +          </div>
-+        )}
-@@
-                 <thead>
-                   <tr>
++
++          <label className="admin-sort">
++            <span className="admin-visually-hidden">Sort</span>
++            <select
++              value={sort}
++              onChange={(e) => {
++                setSort(e.target.value as SortOption);
++                resetToFirstPage();
++              }}
++            >
++              {SORT_OPTIONS.map((opt) => (
++                <option key={opt.value} value={opt.value}>
++                  {opt.label}
++                </option>
++              ))}
++            </select>
++          </label>
++
++          <span className="admin-count">{total} products</span>
++        </div>
++        {selectedIds.length > 0 && <div className="admin-bulkbar">
++          <div><strong>{selectedIds.length}</strong><span> selected</span><button type="button" onClick={() => setSelectedIds([])}>Clear selection</button></div>
++          <select aria-label="Bulk action" value={bulkAction} onChange={(e) => { setBulkAction(e.target.value); setBulkValue(''); }}>
++            <option value="">Choose bulk action</option><option value="Set status">Set status</option><option value="Archive">Archive</option><option value="Add tags">Add tags</option><option value="Remove tags">Remove tags</option><option value="Add to category">Add to category</option><option value="Remove from category">Remove from category</option><option value="Add to collection">Add to collection</option><option value="Remove from collection">Remove from collection</option>
++          </select>
++          {bulkAction === 'Set status' && <select aria-label="Choose status" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)}><option value="">Choose status</option><option value="published">Published</option><option value="unpublished">Unpublished</option><option value="archived">Archived</option></select>}
++          {['Add tags','Remove tags','Add to category','Remove from category','Add to collection','Remove from collection'].includes(bulkAction) && <input aria-label="Bulk value" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} placeholder={bulkAction.includes('tag') ? 'Enter tag' : 'Enter name'} />}
++          <button type="button" className="admin-btn admin-btn--primary" disabled={!bulkAction || (bulkAction !== 'Archive' && !bulkValue) || bulkBusy} onClick={runBulkPreview}>{bulkBusy ? 'Working…' : 'Apply action'}</button>
++        </div>}
++
++        <main className="admin-body">
++          {error ? (
++            <div className="admin-state">
++              <h2 className="admin-state__title">PRODUCTS COULDN&apos;T BE LOADED</h2>
++              <p className="admin-state__text">Something went wrong while loading the catalog.</p>
++              <button
++                type="button"
++                className="admin-btn"
++                onClick={() => {
++                  setError(false);
++                  setLoading(true);
++                  setReloadKey((k) => k + 1);
++                }}
++              >
++                TRY AGAIN
++              </button>
++            </div>
++          ) : loading && items.length === 0 ? (
++            <div className="admin-skeleton">
++              {Array.from({ length: 6 }).map((_, i) => (
++                <div className="admin-skeleton__row" key={i} />
++              ))}
++            </div>
++          ) : showSearchEmpty ? (
++            <div className="admin-state">
++              <h2 className="admin-state__title">NO PRODUCTS FOUND</h2>
++              <p className="admin-state__text">Try another search term or clear the filter.</p>
++              <button
++                type="button"
++                className="admin-btn"
++                onClick={() => {
++                  setSearch('');
++                  setSearchDebounced('');
++                  resetToFirstPage();
++                }}
++              >
++                CLEAR SEARCH
++              </button>
++            </div>
++          ) : showCatalogEmpty ? (
++            <div className="admin-state">
++              <h2 className="admin-state__title">No products yet.</h2>
++              <button type="button" className="admin-btn admin-btn--primary" onClick={() => setEditorOpen(true)}>
++                + ADD PRODUCT
++              </button>
++            </div>
++          ) : (
++            <div className="admin-table-wrap">
++              <table className="admin-table">
++                <thead>
++                  <tr>
 +                    <th scope="col"><input type="checkbox" aria-label="Select all visible products" checked={allVisibleSelected} onChange={() => setSelectedIds((current) => allVisibleSelected ? current.filter((id) => !items.some((item) => item.id === id)) : [...new Set([...current, ...items.map((item) => item.id)])])} /></th>
-                     <th scope="col">Product</th>
-@@
-                     return (
-                       <tr key={product.id}>
++                    <th scope="col">Product</th>
++                    <th scope="col">ID</th>
++                    <th scope="col">Status</th>
++                    <th scope="col">Price</th>
++                    <th scope="col">Tags</th>
++                    <th scope="col">Actions</th>
++                  </tr>
++                </thead>
++                <tbody>
++                  {items.map((product) => {
++                    const rowBusy = busy?.id === product.id;
++                    return (
++                      <tr key={product.id}>
 +                        <td><input type="checkbox" aria-label={`Select ${product.name}`} checked={selectedIds.includes(product.id)} onChange={() => toggleSelected(product.id)} /></td>
-                         <td className="admin-product-cell">
-@@
-               <div className="admin-pagination">
-*** End Patch
++                        <td className="admin-product-cell">
++                          <img
++                            className="admin-thumb"
++                            src={product.main_image ?? FALLBACK_PRODUCT_IMAGE}
++                            alt=""
++                          />
++                          <div className="admin-product-meta">
++                            <Link className="admin-product-name" href={`/admin/products/${product.id}/edit`}>
++                              {product.name}
++                            </Link>
++                            {product.color && <span className="admin-product-color">{product.color}</span>}
++                          </div>
++                        </td>
++                        <td>
++                          <span className="admin-id">{product.id}</span>
++                        </td>
++                        <td>
++                          <span className={`admin-status admin-status--${product.status}`}>{product.status}</span>
++                        </td>
++                        <td>{typeof product.price === 'number' ? `$${product.price.toFixed(2)}` : '—'}</td>
++                        <td>
++                          {product.tags && product.tags.length > 0 && (
++                            <div className="admin-tags">
++                              {product.tags.slice(0, 3).map((tag) => (
++                                <span className="admin-tag" key={tag}>
++                                  {tag}
++                                </span>
++                              ))}
++                              {product.tags.length > 3 && <span className="admin-tag">+{product.tags.length - 3}</span>}
++                            </div>
++                          )}
++                        </td>
++                        <td>
++                          <div className="admin-actions">
++                            <Link className="admin-action admin-action--link" href={`/admin/products/${product.id}/edit`}>
++                              Edit
++                            </Link>
++                            <button
++                              type="button"
++                              className="admin-action"
++                              disabled={rowBusy}
++                              onClick={() => toggleStatus(product)}
++                            >
++                              {rowBusy && busy?.action === 'status'
++                                ? product.status === 'published'
++                                  ? 'Unpublishing...'
++                                  : 'Publishing...'
++                                : product.status === 'published'
++                                  ? 'Unpublish'
++                                  : 'Publish'}
++                            </button>
++                            <button
++                              type="button"
++                              className="admin-action admin-action--danger"
++                              disabled={rowBusy}
++                              onClick={() => setDeleteTarget(product)}
++                            >
++                              {rowBusy && busy?.action === 'delete' ? 'Deleting...' : 'Delete'}
++                            </button>
++                          </div>
++                        </td>
++                      </tr>
++                    );
++                  })}
++                </tbody>
++              </table>
++
++              <div className="admin-pagination">
++                <span className="admin-pagination__info">
++                  Showing {from} to {to} of {total} products
++                </span>
++                <div className="admin-pagination__controls">
++                  <button
++                    type="button"
++                    className="admin-btn"
++                    disabled={page <= 1 || loading}
++                    onClick={() => setPage((p) => p - 1)}
++                  >
++                    Previous
++                  </button>
++                  <button
++                    type="button"
++                    className="admin-btn"
++                    disabled={page >= totalPages || loading}
++                    onClick={() => setPage((p) => p + 1)}
++                  >
++                    Next
++                  </button>
++                </div>
++              </div>
++            </div>
++          )}
++        </main>
++      </div>
++
++      {editorOpen && (
++        <ProductEditor
++          mode="create"
++          onClose={() => setEditorOpen(false)}
++          onSaved={() => {
++            setEditorOpen(false);
++            push('success', 'Product created');
++            setReloadKey((k) => k + 1);
++          }}
++        />
++      )}
++
++      <ConfirmDialog
++        open={deleteTarget !== null}
++        title={deleteTarget ? `Delete "${deleteTarget.name}"?` : ''}
++        description="This will permanently remove the product from the catalog."
++        confirmLabel="Delete Product"
++        busy={busy?.action === 'delete' && busy?.id === deleteTarget?.id}
++        onCancel={() => setDeleteTarget(null)}
++        onConfirm={confirmDelete}
++      />
++
++      <ToastViewport toasts={toasts} onDismiss={dismiss} />
++    </div>
++  );
++}
 diff --git a/rollout/src/app/admin/products/admin.css b/rollout/src/app/admin/products/admin.css
 --- a/rollout/src/app/admin/products/admin.css
 +++ b/rollout/src/app/admin/products/admin.css
-@@
- .admin-toolbar {
-@@
- }
+@@ -1,1145 +1,1147 @@
+-/* =========================================================
+-   ADMIN — PRODUCT DATABASE
+-   Pixel tokens: black background, lemon accent, white text only.
+-   1440px max. Admin styling reuses the rollout visual contract.
+-   ========================================================= */
+-
+-:root {
+-  --admin-black: #000000;
+-  --admin-lemon: #d1fd40;
+-  --admin-ink: #ffffff;
+-  --admin-muted: #a7a7a7;
+-  --admin-line: #262626;
+-  --admin-max: 1440px;
+-}
+-
+-* {
+-  box-sizing: border-box;
+-}
+-
+-.admin-page {
+-  min-height: 100vh;
+-  background: var(--admin-black);
+-  color: var(--admin-ink);
+-}
+-
+-.admin-shell {
+-  max-width: var(--admin-max);
+-  margin: 0 auto;
+-  padding: 40px 32px 80px;
+-}
+-
+-/* ---- Header ---- */
+-
+-.admin-header {
+-  display: flex;
+-  align-items: flex-end;
+-  gap: 20px;
+-  padding-bottom: 28px;
+-  border-bottom: 1px solid var(--admin-line);
+-}
+-
+-.admin-eyebrow {
+-  font-size: 12px;
+-  letter-spacing: 0.22em;
+-  text-transform: uppercase;
+-  color: var(--admin-muted);
+-}
+-
+-.admin-title {
+-  font-size: 40px;
+-  font-weight: 700;
+-  letter-spacing: -0.03em;
+-  margin: 0;
+-  text-transform: uppercase;
+-}
+-
+-.admin-btn {
+-  appearance: none;
+-  border: 1px solid var(--admin-lemon);
+-  background: transparent;
+-  color: var(--admin-ink);
+-  font-size: 12px;
+-  letter-spacing: 0.08em;
+-  text-transform: uppercase;
+-  padding: 10px 18px;
+-  cursor: pointer;
+-}
+-
+-.admin-btn:hover {
+-  background: var(--admin-lemon);
+-  color: var(--admin-black);
+-}
+-
+-.admin-btn:disabled {
+-  opacity: 0.4;
+-  cursor: not-allowed;
+-}
+-
+-.admin-btn--primary {
+-  margin-left: auto;
+-  background: var(--admin-lemon);
+-  color: var(--admin-black);
+-  font-weight: 600;
+-}
+-
+-.admin-btn--primary:hover {
+-  background: var(--admin-ink);
+-  border-color: var(--admin-ink);
+-}
+-
+-/* ---- Toolbar ---- */
+-
+-.admin-toolbar {
+-  display: flex;
+-  align-items: center;
+-  gap: 16px;
+-  padding: 20px 0;
+-  flex-wrap: wrap;
+-}
+-
+-.admin-search {
+-  flex: 0 1 320px;
+-  background: transparent;
+-  border: 1px solid var(--admin-line);
+-  color: var(--admin-ink);
+-  padding: 10px 14px;
+-  font-size: 14px;
+-}
+-
+-.admin-search::placeholder {
+-  color: var(--admin-muted);
+-}
+-
+-.admin-search:focus {
+-  outline: none;
+-  border-color: var(--admin-lemon);
+-}
+-
+-.admin-filter {
+-  display: inline-flex;
+-  border: 1px solid var(--admin-line);
+-}
+-
+-.admin-pill {
+-  appearance: none;
+-  background: transparent;
+-  border: 0;
+-  border-right: 1px solid var(--admin-line);
+-  color: var(--admin-muted);
+-  font-size: 12px;
+-  letter-spacing: 0.06em;
+-  text-transform: uppercase;
+-  padding: 10px 16px;
+-  cursor: pointer;
+-}
+-
+-.admin-pill:last-child {
+-  border-right: 0;
+-}
+-
+-.admin-pill:hover {
+-  color: var(--admin-ink);
+-}
+-
+-.admin-pill.is-active {
+-  background: var(--admin-lemon);
+-  color: var(--admin-black);
+-  font-weight: 600;
+-}
+-
+-.admin-sort select {
+-  appearance: none;
+-  background: transparent;
+-  border: 1px solid var(--admin-line);
+-  color: var(--admin-ink);
+-  font-size: 12px;
+-  text-transform: uppercase;
+-  letter-spacing: 0.06em;
+-  padding: 10px 34px 10px 14px;
+-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23a7a7a7' fill='none'/%3E%3C/svg%3E");
+-  background-repeat: no-repeat;
+-  background-position: right 12px center;
+-  cursor: pointer;
+-}
+-
+-.admin-sort select:focus {
+-  outline: none;
+-  border-color: var(--admin-lemon);
+-}
+-
+-.admin-count {
+-  margin-left: auto;
+-  color: var(--admin-muted);
+-  font-size: 12px;
+-  letter-spacing: 0.08em;
+-  text-transform: uppercase;
+-}
+-
+-/* ---- Table ---- */
+-
+-.admin-table-wrap {
+-  border: 1px solid var(--admin-line);
+-}
+-
+-.admin-table {
+-  width: 100%;
+-  border-collapse: collapse;
+-}
+-
+-.admin-table th {
+-  text-align: left;
+-  font-size: 11px;
+-  font-weight: 600;
+-  letter-spacing: 0.14em;
+-  text-transform: uppercase;
+-  color: var(--admin-muted);
+-  padding: 14px 16px;
+-  border-bottom: 1px solid var(--admin-line);
+-}
+-
+-.admin-table td {
+-  padding: 14px 16px;
+-  border-bottom: 1px solid var(--admin-line);
+-  font-size: 13px;
+-  vertical-align: middle;
+-}
+-
+-.admin-table tbody tr:last-child td {
+-  border-bottom: 0;
+-}
+-
+-.admin-table tbody tr:hover {
+-  background: #0a0a0a;
+-}
+-
+-.admin-product-cell {
+-  display: flex;
+-  align-items: center;
+-  gap: 12px;
+-}
+-
+-.admin-thumb {
+-  width: 44px;
+-  height: 44px;
+-  object-fit: cover;
+-  border: 1px solid var(--admin-line);
+-}
+-
+-.admin-product-meta {
+-  display: flex;
+-  flex-direction: column;
+-}
+-
+-.admin-product-name {
+-  color: var(--admin-ink);
+-  text-decoration: none;
+-  font-weight: 600;
+-}
+-
+-.admin-product-name:hover {
+-  color: var(--admin-lemon);
+-}
+-
+-.admin-product-color {
+-  color: var(--admin-muted);
+-  font-size: 12px;
+-  margin-top: 2px;
+-}
+-
+-.admin-id {
+-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+-  font-size: 12px;
+-  color: var(--admin-muted);
+-}
+-
+-.admin-status {
+-  display: inline-block;
+-  font-size: 11px;
+-  letter-spacing: 0.1em;
+-  text-transform: uppercase;
+-  padding: 4px 10px;
+-  border: 1px solid var(--admin-line);
+-}
+-
+-.admin-status--published {
+-  color: var(--admin-lemon);
+-  border-color: var(--admin-lemon);
+-}
+-
+-.admin-status--unpublished {
+-  color: var(--admin-muted);
+-}
+-
+-.admin-tags {
+-  display: flex;
+-  gap: 6px;
+-  flex-wrap: wrap;
+-}
+-
+-.admin-tag {
+-  font-size: 11px;
+-  color: var(--admin-muted);
+-  border: 1px solid var(--admin-line);
+-  padding: 3px 8px;
+-  text-transform: uppercase;
+-  letter-spacing: 0.06em;
+-}
+-
+-.admin-actions {
+-  display: flex;
+-  gap: 10px;
+-  align-items: center;
+-}
+-
+-.admin-action {
+-  appearance: none;
+-  background: transparent;
+-  border: 0;
+-  color: var(--admin-ink);
+-  font-size: 12px;
+-  letter-spacing: 0.06em;
+-  text-transform: uppercase;
+-  padding: 6px 0;
+-  cursor: pointer;
+-  text-decoration: none;
+-}
+-
+-.admin-action:hover {
+-  color: var(--admin-lemon);
+-}
+-
+-.admin-action:disabled {
+-  color: var(--admin-muted);
+-  cursor: wait;
+-}
+-
+-.admin-action--danger:hover {
+-  color: #ff6b6b;
+-}
+-
+-.admin-action--link {
+-  color: var(--admin-lemon);
+-}
+-
+-/* ---- Pagination ---- */
+-
+-.admin-pagination {
+-  display: flex;
+-  align-items: center;
+-  justify-content: space-between;
+-  padding: 16px;
+-  border-top: 1px solid var(--admin-line);
+-  gap: 16px;
+-  flex-wrap: wrap;
+-}
+-
+-.admin-pagination__info {
+-  font-size: 12px;
+-  color: var(--admin-muted);
+-  letter-spacing: 0.06em;
+-}
+-
+-.admin-pagination__controls {
+-  display: flex;
+-  gap: 10px;
+-}
+-
+-/* ---- States (loading / error / empty) ---- */
+-
+-.admin-state {
+-  display: flex;
+-  flex-direction: column;
+-  align-items: center;
+-  justify-content: center;
+-  gap: 16px;
+-  padding: 80px 24px;
+-  text-align: center;
+-  border: 1px solid var(--admin-line);
+-}
+-
+-.admin-state__title {
+-  margin: 0;
+-  font-size: 26px;
+-  letter-spacing: -0.02em;
+-  text-transform: uppercase;
+-}
+-
+-.admin-state__text {
+-  margin: 0;
+-  color: var(--admin-muted);
+-  font-size: 14px;
+-}
+-
+-.admin-skeleton {
+-  border: 1px solid var(--admin-line);
+-}
+-
+-.admin-skeleton__row {
+-  height: 72px;
+-  border-bottom: 1px solid var(--admin-line);
+-  background: linear-gradient(90deg, #0a0a0a 25%, #141414 50%, #0a0a0a 75%);
+-  background-size: 200% 100%;
+-  animation: admin-shimmer 1.4s infinite;
+-}
+-
+-.admin-skeleton__row:last-child {
+-  border-bottom: 0;
+-}
+-
+-@keyframes admin-shimmer {
+-  from {
+-    background-position: 200% 0;
+-  }
+-  to {
+-    background-position: -200% 0;
+-  }
+-}
+-
+-/* ---- Toasts ---- */
+-
+-.toast-viewport {
+-  position: fixed;
+-  right: 24px;
+-  bottom: 24px;
+-  display: flex;
+-  flex-direction: column;
+-  gap: 10px;
+-  z-index: 1000;
+-  max-width: 360px;
+-}
+-
+-.toast {
+-  display: flex;
+-  align-items: flex-start;
+-  justify-content: space-between;
+-  gap: 14px;
+-  background: #0d0d0d;
+-  border: 1px solid var(--admin-line);
+-  color: var(--admin-ink);
+-  padding: 14px 16px;
+-}
+-
+-.toast--success {
+-  border-color: var(--admin-lemon);
+-}
+-
+-.toast--error {
+-  border-color: #ff6b6b;
+-}
+-
+-.toast--info {
+-  border-color: var(--admin-muted);
+-}
+-
+-.toast__body strong {
+-  display: block;
+-  font-size: 13px;
+-  letter-spacing: 0.04em;
+-}
+-
+-.toast__body p {
+-  margin: 4px 0 0;
+-  font-size: 12px;
+-  color: var(--admin-muted);
+-}
+-
+-.toast button {
+-  appearance: none;
+-  background: transparent;
+-  border: 0;
+-  color: var(--admin-muted);
+-  font-size: 18px;
+-  line-height: 1;
+-  cursor: pointer;
+-}
+-
+-.toast button:hover {
+-  color: var(--admin-ink);
+-}
+-
+-/* ---- Confirm dialog ---- */
+-
+-.confirm-overlay {
+-  position: fixed;
+-  inset: 0;
+-  background: rgba(0, 0, 0, 0.7);
+-  display: flex;
+-  align-items: center;
+-  justify-content: center;
+-  z-index: 1200;
+-  padding: 24px;
+-}
+-
+-.confirm-dialog {
+-  width: 100%;
+-  max-width: 460px;
+-  background: #0d0d0d;
+-  border: 1px solid var(--admin-lemon);
+-  color: var(--admin-ink);
+-  padding: 28px;
+-  outline: none;
+-}
+-
+-.confirm-dialog h2 {
+-  margin: 0 0 10px;
+-  font-size: 20px;
+-  letter-spacing: -0.02em;
+-  text-transform: uppercase;
+-}
+-
+-.confirm-dialog__description {
+-  margin: 0 0 24px;
+-  color: var(--admin-muted);
+-  font-size: 14px;
+-}
+-
+-.confirm-dialog__actions {
+-  display: flex;
+-  justify-content: flex-end;
+-  gap: 10px;
+-}
+-
+-.confirm-dialog__actions button {
+-  appearance: none;
+-  border: 1px solid var(--admin-line);
+-  background: transparent;
+-  color: var(--admin-ink);
+-  font-size: 12px;
+-  letter-spacing: 0.08em;
+-  text-transform: uppercase;
+-  padding: 10px 16px;
+-  cursor: pointer;
+-}
+-
+-.confirm-dialog__actions button:hover:not(:disabled) {
+-  border-color: var(--admin-lemon);
+-  color: var(--admin-lemon);
+-}
+-
+-.confirm-dialog__actions .confirm-dialog__confirm {
+-  background: var(--admin-lemon);
+-  color: var(--admin-black);
+-  border-color: var(--admin-lemon);
+-  font-weight: 600;
+-}
+-
+-.confirm-dialog__actions .confirm-dialog__confirm:hover:not(:disabled) {
+-  background: var(--admin-ink);
+-  border-color: var(--admin-ink);
+-  color: var(--admin-black);
+-}
+-
+-.confirm-dialog__actions button:disabled {
+-  opacity: 0.4;
+-  cursor: not-allowed;
+-}
+-
+-/* ---- Utilities ---- */
+-
+-.admin-visually-hidden {
+-  position: absolute;
+-  width: 1px;
+-  height: 1px;
+-  padding: 0;
+-  margin: -1px;
+-  overflow: hidden;
+-  clip: rect(0 0 0 0);
+-  white-space: nowrap;
+-  border: 0;
+-}
+-
+-/* =========================================================
+-   PRODUCT EDITOR (create modal sheet + edit page)
+-   ========================================================= */
+-
+-.editor-overlay {
+-  align-items: flex-start;
+-  overflow-y: auto;
+-}
+-
+-.editor-sheet {
+-  width: 100%;
+-  max-width: 960px;
+-  max-height: calc(100vh - 48px);
+-  overflow-y: auto;
+-  background: #0d0d0d;
+-  border: 1px solid var(--admin-lemon);
+-  color: var(--admin-ink);
+-}
+-
+-.editor {
+-  padding: 28px;
+-}
+-
+-.editor-header {
+-  display: flex;
+-  align-items: center;
+-  gap: 14px;
+-  border-bottom: 1px solid var(--admin-line);
+-  padding-bottom: 20px;
+-  margin-bottom: 24px;
+-  flex-wrap: wrap;
+-}
+-
+-.editor-header--modal {
+-  position: relative;
+-}
+-
+-.editor-eyebrow {
+-  font-size: 12px;
+-  letter-spacing: 0.22em;
+-  text-transform: uppercase;
+-  color: var(--admin-muted);
+-}
+-
+-.editor-title {
+-  margin: 0;
+-  font-size: 26px;
+-  letter-spacing: -0.02em;
+-  text-transform: uppercase;
+-}
+-
+-.editor-close {
+-  margin-left: auto;
+-  appearance: none;
+-  background: transparent;
+-  border: 0;
+-  color: var(--admin-ink);
+-  font-size: 26px;
+-  line-height: 1;
+-  cursor: pointer;
+-}
+-
+-.editor-close:hover {
+-  color: var(--admin-lemon);
+-}
+-
+-.editor-autofill {
+-  display: flex;
+-  align-items: center;
+-}
+-
+-.editor-autofill__summary {
+-  width: 100%;
+-  margin: 12px 0 0;
+-  font-size: 12px;
+-  color: var(--admin-lemon);
+-}
+-
+-.editor-form {
+-  display: flex;
+-  flex-direction: column;
+-  gap: 30px;
+-}
+-
+-.editor-section {
+-  display: flex;
+-  flex-direction: column;
+-  gap: 12px;
+-  padding-top: 4px;
+-}
+-
+-.editor-section__label {
+-  margin: 0 0 4px;
+-  font-size: 12px;
+-  letter-spacing: 0.18em;
+-  text-transform: uppercase;
+-  color: var(--admin-lemon);
+-}
+-
+-.editor-field {
+-  display: flex;
+-  flex-direction: column;
+-  gap: 6px;
+-  flex: 1;
+-  min-width: 0;
+-}
+-
+-.editor-field--grow {
+-  flex: 1;
+-}
+-
+-.editor-field__label {
+-  font-size: 11px;
+-  letter-spacing: 0.1em;
+-  text-transform: uppercase;
+-  color: var(--admin-muted);
+-}
+-
+-.editor-field__error {
+-  font-size: 12px;
+-  color: #ff6b6b;
+-}
+-
+-.editor-field__hint {
+-  font-size: 12px;
+-  color: var(--admin-muted);
+-}
+-
+-.editor-input {
+-  background: transparent;
+-  border: 1px solid var(--admin-line);
+-  color: var(--admin-ink);
+-  font-size: 14px;
+-  padding: 10px 12px;
+-  font-family: inherit;
+-}
+-
+-.editor-input::placeholder {
+-  color: var(--admin-muted);
+-}
+-
+-.editor-input:focus {
+-  outline: none;
+-  border-color: var(--admin-lemon);
+-}
+-
+-.editor-input.is-invalid {
+-  border-color: #ff6b6b;
+-}
+-
+-.editor-row {
+-  display: flex;
+-  gap: 14px;
+-  flex-wrap: wrap;
+-}
+-
+-.editor-btn {
+-  appearance: none;
+-  border: 1px solid var(--admin-lemon);
+-  background: transparent;
+-  color: var(--admin-ink);
+-  font-size: 12px;
+-  letter-spacing: 0.08em;
+-  text-transform: uppercase;
+-  padding: 8px 14px;
+-  cursor: pointer;
+-}
+-
+-.editor-btn:hover:not(:disabled) {
+-  background: var(--admin-lemon);
+-  color: var(--admin-black);
+-}
+-
+-.editor-btn:disabled {
+-  opacity: 0.4;
+-  cursor: not-allowed;
+-}
+-
+-.editor-btn--primary {
+-  background: var(--admin-lemon);
+-  color: var(--admin-black);
+-  font-weight: 600;
+-}
+-
+-.editor-btn--ghost {
+-  border-color: var(--admin-line);
+-  color: var(--admin-muted);
+-}
+-
+-.editor-btn--ghost:hover:not(:disabled) {
+-  background: transparent;
+-  border-color: var(--admin-lemon);
+-  color: var(--admin-lemon);
+-}
+-
+-.editor-btn--danger:hover:not(:disabled) {
+-  background: transparent;
+-  border-color: #ff6b6b;
+-  color: #ff6b6b;
+-}
+-
+-.editor-inline {
+-  display: flex;
+-  gap: 10px;
+-}
+-
+-.editor-inline .editor-input {
+-  flex: 1;
+-}
+-
+-.editor-benefit {
+-  display: flex;
+-  flex-wrap: wrap;
+-  gap: 10px;
+-  align-items: center;
+-  border: 1px solid var(--admin-line);
+-  padding: 12px;
+-}
+-
+-.editor-benefit .editor-input {
+-  flex: 1 1 40%;
+-}
+-
+-.editor-benefit__icon-picker {
+-  display: inline-flex;
+-  gap: 4px;
+-  flex: 0 0 auto;
+-}
+-
+-.editor-icon {
+-  appearance: none;
+-  border: 1px solid var(--admin-line);
+-  background: transparent;
+-  color: var(--admin-muted);
+-  font-size: 11px;
+-  letter-spacing: 0.06em;
+-  text-transform: uppercase;
+-  padding: 6px 10px;
+-  cursor: pointer;
+-}
+-
+-.editor-icon:hover {
+-  color: var(--admin-ink);
+-}
+-
+-.editor-icon.is-active {
+-  background: var(--admin-lemon);
+-  color: var(--admin-black);
+-  border-color: var(--admin-lemon);
+-}
+-
+-.editor-move-row {
+-  display: inline-flex;
+-  gap: 8px;
+-  flex: 1 1 100%;
+-  justify-content: flex-end;
+-}
+-
+-.editor-chips {
+-  display: flex;
+-  gap: 8px;
+-  flex-wrap: wrap;
+-}
+-
+-.editor-chip {
+-  display: inline-flex;
+-  align-items: center;
+-  gap: 6px;
+-  font-size: 12px;
+-  border: 1px solid var(--admin-line);
+-  padding: 5px 10px;
+-}
+-
+-.editor-chip button {
+-  appearance: none;
+-  background: transparent;
+-  border: 0;
+-  color: var(--admin-muted);
+-  cursor: pointer;
+-  font-size: 14px;
+-}
+-
+-.editor-chip button:hover {
+-  color: var(--admin-ink);
+-}
+-
+-.editor-chip-add {
+-  margin-top: 2px;
+-}
+-
+-.editor-image-actions {
+-  display: flex;
+-  gap: 10px;
+-  flex-wrap: wrap;
+-}
+-
+-.editor-thumb {
+-  display: flex;
+-  align-items: center;
+-  gap: 14px;
+-  flex-wrap: wrap;
+-}
+-
+-.editor-thumb__badge {
+-  font-size: 10px;
+-  letter-spacing: 0.14em;
+-  background: var(--admin-lemon);
+-  color: var(--admin-black);
+-  padding: 3px 8px;
+-  font-weight: 600;
+-}
+-
+-.editor-thumb__img {
+-  width: 120px;
+-  height: 90px;
+-  object-fit: cover;
+-  border: 1px solid var(--admin-line);
+-}
+-
+-.editor-thumb__placeholder {
+-  width: 120px;
+-  height: 90px;
+-  display: flex;
+-  align-items: center;
+-  justify-content: center;
+-  border: 1px dashed var(--admin-line);
+-  color: var(--admin-muted);
+-  font-size: 12px;
+-  text-align: center;
+-}
+-
+-.editor-grid {
+-  display: grid;
+-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+-  gap: 14px;
+-}
+-
+-.editor-grid__item {
+-  border: 1px solid var(--admin-line);
+-  padding: 8px;
+-  display: flex;
+-  flex-direction: column;
+-  gap: 8px;
+-}
+-
+-.editor-grid__img {
+-  width: 100%;
+-  aspect-ratio: 4 / 3;
+-  object-fit: cover;
+-}
+-
+-.editor-grid__caption {
+-  display: flex;
+-  flex-wrap: wrap;
+-  gap: 6px;
+-}
+-
+-.editor-box-list {
+-  display: flex;
+-  flex-direction: column;
+-  gap: 8px;
+-}
+-
+-.editor-box-list__row {
+-  display: flex;
+-  align-items: center;
+-  justify-content: space-between;
+-  border: 1px solid var(--admin-line);
+-  padding: 8px 12px;
+-  font-size: 13px;
+-}
+-
+-.editor-savebar {
+-  display: flex;
+-  align-items: center;
+-  gap: 16px;
+-  border-top: 1px solid var(--admin-line);
+-  padding-top: 20px;
+-  margin-top: 8px;
+-}
+-
+-.editor-savebar__error {
+-  color: #ff6b6b;
+-  font-size: 13px;
+-}
+-
+-.editor-savebar__success {
+-  color: var(--admin-lemon);
+-  font-size: 13px;
+-}
+-
+-.editor-savebar .editor-btn--primary {
+-  margin-left: auto;
+-}
+-
+-/* ---- Media browser ---- */
+-
+-.media-browser {
+-  border: 1px solid var(--admin-line);
+-  padding: 14px;
+-  margin-top: 12px;
+-}
+-
+-.media-browser__header {
+-  display: flex;
+-  align-items: center;
+-  justify-content: space-between;
+-  margin-bottom: 12px;
+-  font-size: 13px;
+-  letter-spacing: 0.08em;
+-  text-transform: uppercase;
+-}
+-
+-.media-browser__grid {
+-  display: grid;
+-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+-  gap: 10px;
+-  max-height: 360px;
+-  overflow-y: auto;
+-}
+-
+-.media-browser__item {
+-  appearance: none;
+-  background: transparent;
+-  border: 1px solid var(--admin-line);
+-  padding: 6px;
+-  cursor: pointer;
+-  text-align: left;
+-}
+-
+-.media-browser__item:hover {
+-  border-color: var(--admin-lemon);
+-}
+-
+-.media-browser__item img {
+-  width: 100%;
+-  aspect-ratio: 4 / 3;
+-  object-fit: cover;
+-}
+-
+-.media-browser__item span {
+-  display: block;
+-  font-size: 11px;
+-  color: var(--admin-muted);
+-  margin-top: 6px;
+-  overflow: hidden;
+-  text-overflow: ellipsis;
+-  white-space: nowrap;
+-}
+-
+-.media-browser__empty {
+-  padding: 20px 0;
+-  text-align: center;
+-}
+-
+-/* ---- Edit page ---- */
+-
+-.edit-page-header {
+-  display: flex;
+-  justify-content: flex-start;
+-  padding-bottom: 16px;
+-  border-bottom: 1px solid var(--admin-line);
+-  margin-bottom: 24px;
+-}
+-
+-/* =========================================================
+-   PHONE — stack everything, rows become cards
+-   ========================================================= */
+-
+-@media (max-width: 720px) {
+-  .admin-shell {
+-    padding: 24px 16px 64px;
+-  }
+-
+-  .admin-header {
+-    flex-wrap: wrap;
+-    align-items: center;
+-  }
+-
+-  .admin-title {
+-    font-size: 30px;
+-    width: 100%;
+-  }
+-
+-  .admin-btn--primary {
+-    margin-left: 0;
+-  }
+-
+-  .admin-toolbar {
+-    gap: 12px;
+-  }
+-
+-  .admin-search {
+-    flex: 1 1 100%;
+-  }
+-
+-  .admin-filter {
+-    order: 3;
+-  }
+-
+-  .admin-sort {
+-    order: 2;
+-  }
+-
+-  .admin-count {
+-    order: 4;
+-    width: 100%;
+-    margin-left: 0;
+-  }
+-
+-  /* Rows become cards: hide table furniture, render blocks */
+-  .admin-table thead {
+-    display: none;
+-  }
+-
+-  .admin-table,
+-  .admin-table tbody,
+-  .admin-table tr,
+-  .admin-table td {
+-    display: block;
+-    width: 100%;
+-  }
+-
+-  .admin-table tr {
+-    padding: 16px;
+-    border-bottom: 1px solid var(--admin-line);
+-  }
+-
+-  .admin-table td {
+-    border: 0;
+-    padding: 8px 0;
+-  }
+-
+-  .admin-actions {
+-    padding-top: 8px;
+-  }
+-
+-  .admin-pagination {
+-    flex-direction: column;
+-    align-items: flex-start;
+-  }
+-
+-  /* Editor sheet: full-height on phone, sticky bottom actions */
+-  .editor-overlay {
+-    align-items: stretch;
+-    padding: 0;
+-  }
+-
+-  .editor-sheet {
+-    max-width: none;
+-    max-height: 100vh;
+-    height: 100vh;
+-    border: 0;
+-    display: flex;
+-    flex-direction: column;
+-  }
+-
+-  .editor {
+-    padding: 20px 16px;
+-    flex: 1;
+-    overflow-y: auto;
+-  }
+-
+-  .editor-form {
+-    gap: 24px;
+-  }
+-
+-  .editor-savebar {
+-    position: sticky;
+-    bottom: 0;
+-    background: #0d0d0d;
+-    padding: 14px 0;
+-    border-top: 1px solid var(--admin-line);
+-  }
+-
+-  .editor-savebar .editor-btn--primary {
+-    flex: 1;
+-  }
+-
+-  .editor-row {
+-    flex-direction: column;
+-    gap: 10px;
+-  }
+-
+-  .editor-benefit {
+-    flex-direction: column;
+-    align-items: stretch;
+-  }
+-
+-  .editor-benefit .editor-input {
+-    flex: 1 1 auto;
+-    width: 100%;
+-  }
+-}
++/* =========================================================
++   ADMIN — PRODUCT DATABASE
++   Pixel tokens: black background, lemon accent, white text only.
++   1440px max. Admin styling reuses the rollout visual contract.
++   ========================================================= */
 +
-+.admin-bulkbar {
++:root {
++  --admin-black: #000000;
++  --admin-lemon: #d1fd40;
++  --admin-ink: #ffffff;
++  --admin-muted: #a7a7a7;
++  --admin-line: #262626;
++  --admin-max: 1440px;
++}
++
++* {
++  box-sizing: border-box;
++}
++
++.admin-page {
++  min-height: 100vh;
++  background: var(--admin-black);
++  color: var(--admin-ink);
++}
++
++.admin-shell {
++  max-width: var(--admin-max);
++  margin: 0 auto;
++  padding: 40px 32px 80px;
++}
++
++/* ---- Header ---- */
++
++.admin-header {
++  display: flex;
++  align-items: flex-end;
++  gap: 20px;
++  padding-bottom: 28px;
++  border-bottom: 1px solid var(--admin-line);
++}
++
++.admin-eyebrow {
++  font-size: 12px;
++  letter-spacing: 0.22em;
++  text-transform: uppercase;
++  color: var(--admin-muted);
++}
++
++.admin-title {
++  font-size: 40px;
++  font-weight: 700;
++  letter-spacing: -0.03em;
++  margin: 0;
++  text-transform: uppercase;
++}
++
++.admin-btn {
++  appearance: none;
++  border: 1px solid var(--admin-lemon);
++  background: transparent;
++  color: var(--admin-ink);
++  font-size: 12px;
++  letter-spacing: 0.08em;
++  text-transform: uppercase;
++  padding: 10px 18px;
++  cursor: pointer;
++}
++
++.admin-btn:hover {
++  background: var(--admin-lemon);
++  color: var(--admin-black);
++}
++
++.admin-btn:disabled {
++  opacity: 0.4;
++  cursor: not-allowed;
++}
++
++.admin-btn--primary {
++  margin-left: auto;
++  background: var(--admin-lemon);
++  color: var(--admin-black);
++  font-weight: 600;
++}
++
++.admin-btn--primary:hover {
++  background: var(--admin-ink);
++  border-color: var(--admin-ink);
++}
++
++/* ---- Toolbar ---- */
++
++.admin-toolbar {
 +  display: flex;
 +  align-items: center;
++  gap: 16px;
++  padding: 20px 0;
++  flex-wrap: wrap;
++}
++
++.admin-search {
++  flex: 0 1 320px;
++  background: transparent;
++  border: 1px solid var(--admin-line);
++  color: var(--admin-ink);
++  padding: 10px 14px;
++  font-size: 14px;
++}
++
++.admin-search::placeholder {
++  color: var(--admin-muted);
++}
++
++.admin-search:focus {
++  outline: none;
++  border-color: var(--admin-lemon);
++}
++
++.admin-filter {
++  display: inline-flex;
++  border: 1px solid var(--admin-line);
++}
++
++.admin-pill {
++  appearance: none;
++  background: transparent;
++  border: 0;
++  border-right: 1px solid var(--admin-line);
++  color: var(--admin-muted);
++  font-size: 12px;
++  letter-spacing: 0.06em;
++  text-transform: uppercase;
++  padding: 10px 16px;
++  cursor: pointer;
++}
++
++.admin-pill:last-child {
++  border-right: 0;
++}
++
++.admin-pill:hover {
++  color: var(--admin-ink);
++}
++
++.admin-pill.is-active {
++  background: var(--admin-lemon);
++  color: var(--admin-black);
++  font-weight: 600;
++}
++
++.admin-sort select {
++  appearance: none;
++  background: transparent;
++  border: 1px solid var(--admin-line);
++  color: var(--admin-ink);
++  font-size: 12px;
++  text-transform: uppercase;
++  letter-spacing: 0.06em;
++  padding: 10px 34px 10px 14px;
++  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23a7a7a7' fill='none'/%3E%3C/svg%3E");
++  background-repeat: no-repeat;
++  background-position: right 12px center;
++  cursor: pointer;
++}
++
++.admin-sort select:focus {
++  outline: none;
++  border-color: var(--admin-lemon);
++}
++
++.admin-count {
++  margin-left: auto;
++  color: var(--admin-muted);
++  font-size: 12px;
++  letter-spacing: 0.08em;
++  text-transform: uppercase;
++}
++
++/* ---- Table ---- */
++
++.admin-table-wrap {
++  border: 1px solid var(--admin-line);
++}
++
++.admin-table {
++  width: 100%;
++  border-collapse: collapse;
++}
++
++.admin-table th {
++  text-align: left;
++  font-size: 11px;
++  font-weight: 600;
++  letter-spacing: 0.14em;
++  text-transform: uppercase;
++  color: var(--admin-muted);
++  padding: 14px 16px;
++  border-bottom: 1px solid var(--admin-line);
++}
++
++.admin-table td {
++  padding: 14px 16px;
++  border-bottom: 1px solid var(--admin-line);
++  font-size: 13px;
++  vertical-align: middle;
++}
++
++.admin-table tbody tr:last-child td {
++  border-bottom: 0;
++}
++
++.admin-table tbody tr:hover {
++  background: #0a0a0a;
++}
++
++.admin-product-cell {
++  display: flex;
++  align-items: center;
++  gap: 12px;
++}
++
++.admin-thumb {
++  width: 44px;
++  height: 44px;
++  object-fit: cover;
++  border: 1px solid var(--admin-line);
++}
++
++.admin-product-meta {
++  display: flex;
++  flex-direction: column;
++}
++
++.admin-product-name {
++  color: var(--admin-ink);
++  text-decoration: none;
++  font-weight: 600;
++}
++
++.admin-product-name:hover {
++  color: var(--admin-lemon);
++}
++
++.admin-product-color {
++  color: var(--admin-muted);
++  font-size: 12px;
++  margin-top: 2px;
++}
++
++.admin-id {
++  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
++  font-size: 12px;
++  color: var(--admin-muted);
++}
++
++.admin-status {
++  display: inline-block;
++  font-size: 11px;
++  letter-spacing: 0.1em;
++  text-transform: uppercase;
++  padding: 4px 10px;
++  border: 1px solid var(--admin-line);
++}
++
++.admin-status--published {
++  color: var(--admin-lemon);
++  border-color: var(--admin-lemon);
++}
++
++.admin-status--unpublished {
++  color: var(--admin-muted);
++}
++
++.admin-tags {
++  display: flex;
++  gap: 6px;
++  flex-wrap: wrap;
++}
++
++.admin-tag {
++  font-size: 11px;
++  color: var(--admin-muted);
++  border: 1px solid var(--admin-line);
++  padding: 3px 8px;
++  text-transform: uppercase;
++  letter-spacing: 0.06em;
++}
++
++.admin-actions {
++  display: flex;
++  gap: 10px;
++  align-items: center;
++}
++
++.admin-action {
++  appearance: none;
++  background: transparent;
++  border: 0;
++  color: var(--admin-ink);
++  font-size: 12px;
++  letter-spacing: 0.06em;
++  text-transform: uppercase;
++  padding: 6px 0;
++  cursor: pointer;
++  text-decoration: none;
++}
++
++.admin-action:hover {
++  color: var(--admin-lemon);
++}
++
++.admin-action:disabled {
++  color: var(--admin-muted);
++  cursor: wait;
++}
++
++.admin-action--danger:hover {
++  color: #ff6b6b;
++}
++
++.admin-action--link {
++  color: var(--admin-lemon);
++}
++
++/* ---- Pagination ---- */
++
++.admin-pagination {
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  padding: 16px;
++  border-top: 1px solid var(--admin-line);
++  gap: 16px;
++  flex-wrap: wrap;
++}
++
++.admin-pagination__info {
++  font-size: 12px;
++  color: var(--admin-muted);
++  letter-spacing: 0.06em;
++}
++
++.admin-pagination__controls {
++  display: flex;
++  gap: 10px;
++}
++
++/* ---- States (loading / error / empty) ---- */
++
++.admin-state {
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  justify-content: center;
++  gap: 16px;
++  padding: 80px 24px;
++  text-align: center;
++  border: 1px solid var(--admin-line);
++}
++
++.admin-state__title {
++  margin: 0;
++  font-size: 26px;
++  letter-spacing: -0.02em;
++  text-transform: uppercase;
++}
++
++.admin-state__text {
++  margin: 0;
++  color: var(--admin-muted);
++  font-size: 14px;
++}
++
++.admin-skeleton {
++  border: 1px solid var(--admin-line);
++}
++
++.admin-skeleton__row {
++  height: 72px;
++  border-bottom: 1px solid var(--admin-line);
++  background: linear-gradient(90deg, #0a0a0a 25%, #141414 50%, #0a0a0a 75%);
++  background-size: 200% 100%;
++  animation: admin-shimmer 1.4s infinite;
++}
++
++.admin-skeleton__row:last-child {
++  border-bottom: 0;
++}
++
++@keyframes admin-shimmer {
++  from {
++    background-position: 200% 0;
++  }
++  to {
++    background-position: -200% 0;
++  }
++}
++
++/* ---- Toasts ---- */
++
++.toast-viewport {
++  position: fixed;
++  right: 24px;
++  bottom: 24px;
++  display: flex;
++  flex-direction: column;
++  gap: 10px;
++  z-index: 1000;
++  max-width: 360px;
++}
++
++.toast {
++  display: flex;
++  align-items: flex-start;
++  justify-content: space-between;
++  gap: 14px;
++  background: #0d0d0d;
++  border: 1px solid var(--admin-line);
++  color: var(--admin-ink);
++  padding: 14px 16px;
++}
++
++.toast--success {
++  border-color: var(--admin-lemon);
++}
++
++.toast--error {
++  border-color: #ff6b6b;
++}
++
++.toast--info {
++  border-color: var(--admin-muted);
++}
++
++.toast__body strong {
++  display: block;
++  font-size: 13px;
++  letter-spacing: 0.04em;
++}
++
++.toast__body p {
++  margin: 4px 0 0;
++  font-size: 12px;
++  color: var(--admin-muted);
++}
++
++.toast button {
++  appearance: none;
++  background: transparent;
++  border: 0;
++  color: var(--admin-muted);
++  font-size: 18px;
++  line-height: 1;
++  cursor: pointer;
++}
++
++.toast button:hover {
++  color: var(--admin-ink);
++}
++
++/* ---- Confirm dialog ---- */
++
++.confirm-overlay {
++  position: fixed;
++  inset: 0;
++  background: rgba(0, 0, 0, 0.7);
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  z-index: 1200;
++  padding: 24px;
++}
++
++.confirm-dialog {
++  width: 100%;
++  max-width: 460px;
++  background: #0d0d0d;
++  border: 1px solid var(--admin-lemon);
++  color: var(--admin-ink);
++  padding: 28px;
++  outline: none;
++}
++
++.confirm-dialog h2 {
++  margin: 0 0 10px;
++  font-size: 20px;
++  letter-spacing: -0.02em;
++  text-transform: uppercase;
++}
++
++.confirm-dialog__description {
++  margin: 0 0 24px;
++  color: var(--admin-muted);
++  font-size: 14px;
++}
++
++.confirm-dialog__actions {
++  display: flex;
++  justify-content: flex-end;
++  gap: 10px;
++}
++
++.confirm-dialog__actions button {
++  appearance: none;
++  border: 1px solid var(--admin-line);
++  background: transparent;
++  color: var(--admin-ink);
++  font-size: 12px;
++  letter-spacing: 0.08em;
++  text-transform: uppercase;
++  padding: 10px 16px;
++  cursor: pointer;
++}
++
++.confirm-dialog__actions button:hover:not(:disabled) {
++  border-color: var(--admin-lemon);
++  color: var(--admin-lemon);
++}
++
++.confirm-dialog__actions .confirm-dialog__confirm {
++  background: var(--admin-lemon);
++  color: var(--admin-black);
++  border-color: var(--admin-lemon);
++  font-weight: 600;
++}
++
++.confirm-dialog__actions .confirm-dialog__confirm:hover:not(:disabled) {
++  background: var(--admin-ink);
++  border-color: var(--admin-ink);
++  color: var(--admin-black);
++}
++
++.confirm-dialog__actions button:disabled {
++  opacity: 0.4;
++  cursor: not-allowed;
++}
++
++/* ---- Utilities ---- */
++
++.admin-visually-hidden {
++  position: absolute;
++  width: 1px;
++  height: 1px;
++  padding: 0;
++  margin: -1px;
++  overflow: hidden;
++  clip: rect(0 0 0 0);
++  white-space: nowrap;
++  border: 0;
++}
++
++/* =========================================================
++   PRODUCT EDITOR (create modal sheet + edit page)
++   ========================================================= */
++
++.editor-overlay {
++  align-items: flex-start;
++  overflow-y: auto;
++}
++
++.editor-sheet {
++  width: 100%;
++  max-width: 960px;
++  max-height: calc(100vh - 48px);
++  overflow-y: auto;
++  background: #0d0d0d;
++  border: 1px solid var(--admin-lemon);
++  color: var(--admin-ink);
++}
++
++.editor {
++  padding: 28px;
++}
++
++.editor-header {
++  display: flex;
++  align-items: center;
++  gap: 14px;
++  border-bottom: 1px solid var(--admin-line);
++  padding-bottom: 20px;
++  margin-bottom: 24px;
++  flex-wrap: wrap;
++}
++
++.editor-header--modal {
++  position: relative;
++}
++
++.editor-eyebrow {
++  font-size: 12px;
++  letter-spacing: 0.22em;
++  text-transform: uppercase;
++  color: var(--admin-muted);
++}
++
++.editor-title {
++  margin: 0;
++  font-size: 26px;
++  letter-spacing: -0.02em;
++  text-transform: uppercase;
++}
++
++.editor-close {
++  margin-left: auto;
++  appearance: none;
++  background: transparent;
++  border: 0;
++  color: var(--admin-ink);
++  font-size: 26px;
++  line-height: 1;
++  cursor: pointer;
++}
++
++.editor-close:hover {
++  color: var(--admin-lemon);
++}
++
++.editor-autofill {
++  display: flex;
++  align-items: center;
++}
++
++.editor-autofill__summary {
++  width: 100%;
++  margin: 12px 0 0;
++  font-size: 12px;
++  color: var(--admin-lemon);
++}
++
++.editor-form {
++  display: flex;
++  flex-direction: column;
++  gap: 30px;
++}
++
++.editor-section {
++  display: flex;
++  flex-direction: column;
++  gap: 12px;
++  padding-top: 4px;
++}
++
++.editor-section__label {
++  margin: 0 0 4px;
++  font-size: 12px;
++  letter-spacing: 0.18em;
++  text-transform: uppercase;
++  color: var(--admin-lemon);
++}
++
++.editor-field {
++  display: flex;
++  flex-direction: column;
++  gap: 6px;
++  flex: 1;
++  min-width: 0;
++}
++
++.editor-field--grow {
++  flex: 1;
++}
++
++.editor-field__label {
++  font-size: 11px;
++  letter-spacing: 0.1em;
++  text-transform: uppercase;
++  color: var(--admin-muted);
++}
++
++.editor-field__error {
++  font-size: 12px;
++  color: #ff6b6b;
++}
++
++.editor-field__hint {
++  font-size: 12px;
++  color: var(--admin-muted);
++}
++
++.editor-input {
++  background: transparent;
++  border: 1px solid var(--admin-line);
++  color: var(--admin-ink);
++  font-size: 14px;
++  padding: 10px 12px;
++  font-family: inherit;
++}
++
++.editor-input::placeholder {
++  color: var(--admin-muted);
++}
++
++.editor-input:focus {
++  outline: none;
++  border-color: var(--admin-lemon);
++}
++
++.editor-input.is-invalid {
++  border-color: #ff6b6b;
++}
++
++.editor-row {
++  display: flex;
++  gap: 14px;
++  flex-wrap: wrap;
++}
++
++.editor-btn {
++  appearance: none;
++  border: 1px solid var(--admin-lemon);
++  background: transparent;
++  color: var(--admin-ink);
++  font-size: 12px;
++  letter-spacing: 0.08em;
++  text-transform: uppercase;
++  padding: 8px 14px;
++  cursor: pointer;
++}
++
++.editor-btn:hover:not(:disabled) {
++  background: var(--admin-lemon);
++  color: var(--admin-black);
++}
++
++.editor-btn:disabled {
++  opacity: 0.4;
++  cursor: not-allowed;
++}
++
++.editor-btn--primary {
++  background: var(--admin-lemon);
++  color: var(--admin-black);
++  font-weight: 600;
++}
++
++.editor-btn--ghost {
++  border-color: var(--admin-line);
++  color: var(--admin-muted);
++}
++
++.editor-btn--ghost:hover:not(:disabled) {
++  background: transparent;
++  border-color: var(--admin-lemon);
++  color: var(--admin-lemon);
++}
++
++.editor-btn--danger:hover:not(:disabled) {
++  background: transparent;
++  border-color: #ff6b6b;
++  color: #ff6b6b;
++}
++
++.editor-inline {
++  display: flex;
++  gap: 10px;
++}
++
++.editor-inline .editor-input {
++  flex: 1;
++}
++
++.editor-benefit {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 10px;
++  align-items: center;
++  border: 1px solid var(--admin-line);
++  padding: 12px;
++}
++
++.editor-benefit .editor-input {
++  flex: 1 1 40%;
++}
++
++.editor-benefit__icon-picker {
++  display: inline-flex;
++  gap: 4px;
++  flex: 0 0 auto;
++}
++
++.editor-icon {
++  appearance: none;
++  border: 1px solid var(--admin-line);
++  background: transparent;
++  color: var(--admin-muted);
++  font-size: 11px;
++  letter-spacing: 0.06em;
++  text-transform: uppercase;
++  padding: 6px 10px;
++  cursor: pointer;
++}
++
++.editor-icon:hover {
++  color: var(--admin-ink);
++}
++
++.editor-icon.is-active {
++  background: var(--admin-lemon);
++  color: var(--admin-black);
++  border-color: var(--admin-lemon);
++}
++
++.editor-move-row {
++  display: inline-flex;
++  gap: 8px;
++  flex: 1 1 100%;
++  justify-content: flex-end;
++}
++
++.editor-chips {
++  display: flex;
++  gap: 8px;
++  flex-wrap: wrap;
++}
++
++.editor-chip {
++  display: inline-flex;
++  align-items: center;
++  gap: 6px;
++  font-size: 12px;
++  border: 1px solid var(--admin-line);
++  padding: 5px 10px;
++}
++
++.editor-chip button {
++  appearance: none;
++  background: transparent;
++  border: 0;
++  color: var(--admin-muted);
++  cursor: pointer;
++  font-size: 14px;
++}
++
++.editor-chip button:hover {
++  color: var(--admin-ink);
++}
++
++.editor-chip-add {
++  margin-top: 2px;
++}
++
++.editor-image-actions {
++  display: flex;
 +  gap: 10px;
 +  flex-wrap: wrap;
-+  padding: 14px 16px;
-+  margin: 0 0 18px;
-+  border: 1px solid var(--admin-lemon);
-+  background: #0b0b0b;
 +}
-+.admin-bulkbar > div { display:flex; align-items:center; gap:6px; margin-right:auto; color:var(--admin-muted); font-size:12px; }
-+.admin-bulkbar > div strong { color:var(--admin-lemon); font-size:16px; }
-+.admin-bulkbar > div button { border:0; background:none; color:var(--admin-ink); text-decoration:underline; cursor:pointer; margin-left:8px; font-size:11px; }
-+.admin-bulkbar select,.admin-bulkbar input { min-width:150px; background:#080808; color:#fff; border:1px solid var(--admin-line); padding:10px; font-size:12px; }
-+.admin-table input[type="checkbox"],.admin-table th input[type="checkbox"] { accent-color:var(--admin-lemon); width:16px; height:16px; cursor:pointer; }
-+@media(max-width:700px){.admin-bulkbar{align-items:stretch}.admin-bulkbar>*{width:100%}.admin-bulkbar select,.admin-bulkbar input{width:100%}}
++
++.editor-thumb {
++  display: flex;
++  align-items: center;
++  gap: 14px;
++  flex-wrap: wrap;
++}
++
++.editor-thumb__badge {
++  font-size: 10px;
++  letter-spacing: 0.14em;
++  background: var(--admin-lemon);
++  color: var(--admin-black);
++  padding: 3px 8px;
++  font-weight: 600;
++}
++
++.editor-thumb__img {
++  width: 120px;
++  height: 90px;
++  object-fit: cover;
++  border: 1px solid var(--admin-line);
++}
++
++.editor-thumb__placeholder {
++  width: 120px;
++  height: 90px;
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  border: 1px dashed var(--admin-line);
++  color: var(--admin-muted);
++  font-size: 12px;
++  text-align: center;
++}
++
++.editor-grid {
++  display: grid;
++  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
++  gap: 14px;
++}
++
++.editor-grid__item {
++  border: 1px solid var(--admin-line);
++  padding: 8px;
++  display: flex;
++  flex-direction: column;
++  gap: 8px;
++}
++
++.editor-grid__img {
++  width: 100%;
++  aspect-ratio: 4 / 3;
++  object-fit: cover;
++}
++
++.editor-grid__caption {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 6px;
++}
++
++.editor-box-list {
++  display: flex;
++  flex-direction: column;
++  gap: 8px;
++}
++
++.editor-box-list__row {
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  border: 1px solid var(--admin-line);
++  padding: 8px 12px;
++  font-size: 13px;
++}
++
++.editor-savebar {
++  display: flex;
++  align-items: center;
++  gap: 16px;
++  border-top: 1px solid var(--admin-line);
++  padding-top: 20px;
++  margin-top: 8px;
++}
++
++.editor-savebar__error {
++  color: #ff6b6b;
++  font-size: 13px;
++}
++
++.editor-savebar__success {
++  color: var(--admin-lemon);
++  font-size: 13px;
++}
++
++.editor-savebar .editor-btn--primary {
++  margin-left: auto;
++}
++
++/* ---- Media browser ---- */
++
++.media-browser {
++  border: 1px solid var(--admin-line);
++  padding: 14px;
++  margin-top: 12px;
++}
++
++.media-browser__header {
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  margin-bottom: 12px;
++  font-size: 13px;
++  letter-spacing: 0.08em;
++  text-transform: uppercase;
++}
++
++.media-browser__grid {
++  display: grid;
++  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
++  gap: 10px;
++  max-height: 360px;
++  overflow-y: auto;
++}
++
++.media-browser__item {
++  appearance: none;
++  background: transparent;
++  border: 1px solid var(--admin-line);
++  padding: 6px;
++  cursor: pointer;
++  text-align: left;
++}
++
++.media-browser__item:hover {
++  border-color: var(--admin-lemon);
++}
++
++.media-browser__item img {
++  width: 100%;
++  aspect-ratio: 4 / 3;
++  object-fit: cover;
++}
++
++.media-browser__item span {
++  display: block;
++  font-size: 11px;
++  color: var(--admin-muted);
++  margin-top: 6px;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.media-browser__empty {
++  padding: 20px 0;
++  text-align: center;
++}
++
++/* ---- Edit page ---- */
++
++.edit-page-header {
++  display: flex;
++  justify-content: flex-start;
++  padding-bottom: 16px;
++  border-bottom: 1px solid var(--admin-line);
++  margin-bottom: 24px;
++}
++
++/* =========================================================
++   PHONE — stack everything, rows become cards
++   ========================================================= */
++
++@media (max-width: 720px) {
++  .admin-shell {
++    padding: 24px 16px 64px;
++  }
++
++  .admin-header {
++    flex-wrap: wrap;
++    align-items: center;
++  }
++
++  .admin-title {
++    font-size: 30px;
++    width: 100%;
++  }
++
++  .admin-btn--primary {
++    margin-left: 0;
++  }
++
++  .admin-toolbar {
++    gap: 12px;
++  }
++
++  .admin-search {
++    flex: 1 1 100%;
++  }
++
++  .admin-filter {
++    order: 3;
++  }
++
++  .admin-sort {
++    order: 2;
++  }
++
++  .admin-count {
++    order: 4;
++    width: 100%;
++    margin-left: 0;
++  }
++
++  /* Rows become cards: hide table furniture, render blocks */
++  .admin-table thead {
++    display: none;
++  }
++
++  .admin-table,
++  .admin-table tbody,
++  .admin-table tr,
++  .admin-table td {
++    display: block;
++    width: 100%;
++  }
++
++  .admin-table tr {
++    padding: 16px;
++    border-bottom: 1px solid var(--admin-line);
++  }
++
++  .admin-table td {
++    border: 0;
++    padding: 8px 0;
++  }
++
++  .admin-actions {
++    padding-top: 8px;
++  }
++
++  .admin-pagination {
++    flex-direction: column;
++    align-items: flex-start;
++  }
++
++  /* Editor sheet: full-height on phone, sticky bottom actions */
++  .editor-overlay {
++    align-items: stretch;
++    padding: 0;
++  }
++
++  .editor-sheet {
++    max-width: none;
++    max-height: 100vh;
++    height: 100vh;
++    border: 0;
++    display: flex;
++    flex-direction: column;
++  }
++
++  .editor {
++    padding: 20px 16px;
++    flex: 1;
++    overflow-y: auto;
++  }
++
++  .editor-form {
++    gap: 24px;
++  }
++
++  .editor-savebar {
++    position: sticky;
++    bottom: 0;
++    background: #0d0d0d;
++    padding: 14px 0;
++    border-top: 1px solid var(--admin-line);
++  }
++
++  .editor-savebar .editor-btn--primary {
++    flex: 1;
++  }
++
++  .editor-row {
++    flex-direction: column;
++    gap: 10px;
++  }
++
++  .editor-benefit {
++    flex-direction: column;
++    align-items: stretch;
++  }
++
++  .editor-benefit .editor-input {
++    flex: 1 1 auto;
++    width: 100%;
++  }
++}
++
++.admin-bulkbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 16px;margin:0 0 18px;border:1px solid var(--admin-lemon);background:#0b0b0b}.admin-bulkbar>div{display:flex;align-items:center;gap:6px;margin-right:auto;color:var(--admin-muted);font-size:12px}.admin-bulkbar>div strong{color:var(--admin-lemon);font-size:16px}.admin-bulkbar>div button{border:0;background:none;color:var(--admin-ink);text-decoration:underline;cursor:pointer;margin-left:8px;font-size:11px}.admin-bulkbar select,.admin-bulkbar input{min-width:150px;background:#080808;color:#fff;border:1px solid var(--admin-line);padding:10px;font-size:12px}.admin-table input[type=checkbox],.admin-table th input[type=checkbox]{accent-color:var(--admin-lemon);width:16px;height:16px;cursor:pointer}@media(max-width:700px){.admin-bulkbar{align-items:stretch}.admin-bulkbar>*{width:100%}.admin-bulkbar select,.admin-bulkbar input{width:100%}}
